@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NullBeat Lite</title>
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Doto:wght@700;800&family=Inter:wght@400;500;600&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Playfair+Display:wght@700&display=swap"
+    rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #000000;
+      --fg: #ffffff;
+      --fg-muted: #777777;
+      --border: #1a1a1a;
+      --border-bright: #2a2a2a;
+      --accent: #e52b20;
+      --accent-hover: #ff3325;
+      --surface: #0a0a0a;
+      --surface-card: #111111;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--fg);
+      font-family: 'Space Mono', monospace;
+      line-height: 1.5;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 2rem 1rem;
+      -webkit-font-smoothing: antialiased;
+      letter-spacing: -0.02em;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 520px;
+    }
+
+    header {
+      margin-bottom: 2rem;
+      position: relative;
+    }
+
+    .logo-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.5rem;
+    }
+
+    h1 {
+      font-family: 'Doto', sans-serif;
+      font-size: 2.25rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      color: var(--fg);
+      text-transform: uppercase;
+      line-height: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.4rem;
+    }
+
+    .brand-row {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .lite-pill {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.62rem;
+      font-weight: 700;
+      color: var(--accent);
+      background: rgba(229, 43, 32, 0.12);
+      border: 1px solid rgba(229, 43, 32, 0.4);
+      padding: 0.18rem 0.45rem;
+      border-radius: 4px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .sub-author {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.85rem;
+      font-weight: 400;
+      color: var(--fg-muted);
+      text-transform: none;
+      letter-spacing: 0;
+      margin-left: 0;
+    }
+
+    .logo-svg {
+      width: 32px;
+      height: 32px;
+      color: var(--fg);
+    }
+
+    .header-meta {
+      display: flex;
+      align-items: center;
+      margin-top: 0.75rem;
+    }
+
+    /* Accordion Dropdown */
+    .usage-toggle-btn {
+      background: transparent;
+      border: 1px solid var(--border-bright);
+      color: var(--fg-muted);
+      font-family: 'Space Mono', monospace;
+      font-size: 0.75rem;
+      padding: 0.4rem 0.75rem;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .usage-toggle-btn:hover {
+      color: var(--fg);
+      border-color: var(--fg-muted);
+    }
+
+    .docs-btn,
+    .head-server-btn {
+      background: transparent;
+      border: 1px solid var(--border-bright);
+      color: var(--fg-muted);
+      font-family: 'Space Mono', monospace;
+      font-size: 0.7rem;
+      padding: 0 0.65rem;
+      height: 29px;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      transition: all 0.2s;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.35rem;
+      box-sizing: border-box;
+      white-space: nowrap;
+      min-width: 78px;
+    }
+
+    .docs-btn:hover {
+      color: var(--fg);
+      border-color: var(--fg-muted);
+    }
+
+    .head-server-btn:hover {
+      background: rgba(29, 185, 84, 0.08);
+      border-color: #1db954;
+      color: #1db954;
+    }
+
+    .discord-btn,
+    .web-btn,
+    .github-btn,
+    .support-btn {
+      background: transparent;
+      border: 1px solid var(--border-bright);
+      color: var(--fg-muted);
+      width: 29px;
+      height: 29px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+      flex-shrink: 0;
+    }
+
+    .discord-btn:hover,
+    .web-btn:hover,
+    .github-btn:hover {
+      color: var(--fg);
+      border-color: var(--fg-muted);
+    }
+
+    .support-btn:hover {
+      color: var(--accent);
+      border-color: var(--accent);
+      background: rgba(229, 43, 32, 0.08);
+    }
+
+    .arrow-icon {
+      display: inline-block;
+      transition: transform 0.2s ease;
+      font-size: 0.65rem;
+    }
+
+    .usage-toggle-btn.open .arrow-icon {
+      transform: rotate(180deg);
+    }
+
+    .usage-instructions {
+      display: none;
+      margin-top: 1rem;
+      padding: 1.25rem;
+      background-color: var(--surface);
+      border: 1px solid var(--border-bright);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.85rem;
+      color: var(--fg-muted);
+    }
+
+    .usage-instructions.show {
+      display: block;
+    }
+
+    .usage-instructions ol {
+      padding-left: 1.2rem;
+    }
+
+    .usage-instructions li {
+      margin-bottom: 0.5rem;
+      line-height: 1.45;
+    }
+
+    .usage-instructions a {
+      color: var(--fg);
+      text-decoration: underline;
+      font-weight: 500;
+    }
+
+    .usage-instructions a:hover {
+      color: var(--accent);
+    }
+
+    .usage-note {
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.75rem;
+      color: #666;
+    }
+
+    .group {
+      margin-bottom: 2rem;
+    }
+
+    label {
+      display: flex;
+      justify-content: space-between;
+      font-family: 'Doto', sans-serif;
+      font-size: 1.1rem;
+      text-transform: uppercase;
+      color: var(--fg);
+      margin-bottom: 1rem;
+      letter-spacing: 0.1em;
+    }
+
+    .hint-link {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--accent);
+      text-transform: uppercase;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .hint-link:hover {
+      color: var(--fg);
+    }
+
+    .promo-text {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.8rem;
+      color: var(--fg-muted);
+      margin-top: 0.75rem;
+    }
+
+    .promo-text a {
+      color: var(--fg);
+      text-decoration: underline;
+      text-decoration-color: var(--border-bright);
+      text-underline-offset: 4px;
+      transition: all 0.2s;
+    }
+
+    .promo-text a:hover {
+      color: var(--accent);
+      text-decoration-color: var(--accent);
+    }
+
+    input[type="text"],
+    select.debrid-select {
+      width: 100%;
+      background-color: transparent;
+      border: 1px solid var(--border-bright);
+      border-radius: 0;
+      padding: 1.25rem 1rem;
+      color: var(--fg);
+      font-family: 'Space Mono', monospace;
+      font-size: 1rem;
+      transition: all 0.2s ease;
+    }
+
+    input[type="text"]:focus,
+    select.debrid-select:focus {
+      outline: none;
+      border-color: var(--fg);
+      background-color: rgba(255, 255, 255, 0.03);
+    }
+
+    select.debrid-select {
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23777777' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+      background-repeat: no-repeat;
+      background-position: right 1rem center;
+      background-size: 1rem;
+      cursor: pointer;
+    }
+
+    select.debrid-select option {
+      background-color: #0a0a0a;
+      color: #ffffff;
+      padding: 10px;
+      font-family: 'Space Mono', monospace;
+    }
+
+    select.debrid-select option:disabled {
+      color: #555555;
+    }
+
+    input[type="text"]::placeholder {
+      color: #444;
+    }
+
+    .quality-selector {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .q-row {
+      display: flex;
+      align-items: center;
+      border: 1px solid var(--border-bright);
+      padding: 1rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background-color: transparent;
+    }
+
+    .q-row:hover {
+      border-color: var(--fg-muted);
+    }
+
+    .q-row.active {
+      border-color: var(--fg);
+      background-color: var(--surface-card);
+    }
+
+    .q-indicator {
+      width: 16px;
+      height: 16px;
+      border: 1px solid var(--border-bright);
+      border-radius: 50%;
+      margin-right: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .q-row.active .q-indicator {
+      border-color: var(--accent);
+    }
+
+    .q-indicator-dot {
+      width: 8px;
+      height: 8px;
+      background-color: transparent;
+      border-radius: 50%;
+    }
+
+    .q-row.active .q-indicator-dot {
+      background-color: var(--accent);
+    }
+
+    .q-info {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .q-title {
+      font-family: 'Doto', sans-serif;
+      font-size: 1.2rem;
+      color: var(--fg);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .q-desc {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--fg-muted);
+    }
+
+    .q-row.active .q-title {
+      color: var(--accent);
+    }
+
+    button.submit {
+      width: 100%;
+      background-color: transparent;
+      color: var(--fg);
+      border: 1px solid var(--border-bright);
+      border-radius: 9999px;
+      padding: 1.25rem;
+      font-family: 'Doto', sans-serif;
+      font-size: 1.25rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-top: 1rem;
+    }
+
+    button.submit:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background-color: var(--surface-card);
+    }
+
+    .submit-row {
+      display: flex;
+      gap: 0.75rem;
+      align-items: stretch;
+      margin-top: 1rem;
+    }
+
+    .submit-row button.submit {
+      flex: 1;
+      margin-top: 0;
+    }
+
+    .webclient-btn {
+      background-color: transparent;
+      color: var(--fg);
+      border: 1px solid var(--border-bright);
+      border-radius: 9999px;
+      padding: 0 1.5rem;
+      font-family: 'Doto', sans-serif;
+      font-size: 1.05rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      text-decoration: none;
+    }
+
+    .webclient-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background-color: var(--surface-card);
+    }
+
+    .result-box {
+      display: none;
+      margin-top: 2rem;
+      border: 1px dashed var(--border-bright);
+      padding: 1.5rem;
+    }
+
+    .result-box.show {
+      display: block;
+    }
+
+    .result-header {
+      font-family: 'Doto', sans-serif;
+      color: var(--accent);
+      font-size: 1rem;
+      margin-bottom: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .url-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
+    .url-text {
+      flex: 1;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.85rem;
+      color: var(--fg);
+      word-break: break-all;
+      background: var(--surface-card);
+      padding: 1rem;
+      border-left: 3px solid var(--accent);
+    }
+
+    button.copy {
+      background: transparent;
+      border: 1px solid var(--fg);
+      color: var(--fg);
+      border-radius: 9999px;
+      padding: 0.75rem 1.5rem;
+      font-family: 'Doto', sans-serif;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    button.copy:hover {
+      background: var(--fg);
+      color: var(--bg);
+    }
+
+    .error-msg {
+      color: var(--accent);
+      font-family: 'Space Mono', monospace;
+      font-size: 0.85rem;
+      margin-top: 0.5rem;
+      display: none;
+    }
+
+    /* Subtle External Reference */
+    .subtle-promo {
+      margin-top: 2rem;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.75rem;
+      color: #555;
+      text-align: center;
+    }
+
+    .subtle-promo a {
+      color: #777;
+      text-decoration: underline;
+      transition: color 0.2s;
+    }
+
+    .subtle-promo a:hover {
+      color: var(--fg-muted);
+    }
+
+    /* Legal Footer Section */
+    footer.legal-footer {
+      margin-top: 2.5rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.72rem;
+      color: #555;
+      line-height: 1.6;
+    }
+
+    footer.legal-footer h3 {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.7rem;
+      color: #777;
+      text-transform: uppercase;
+      margin-bottom: 0.5rem;
+      letter-spacing: 0.05em;
+    }
+
+    footer.legal-footer p {
+      margin-bottom: 0.5rem;
+    }
+
+    /* Modal Styles */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      z-index: 999;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .modal-overlay.show {
+      display: flex;
+    }
+
+    .modal-content {
+      background: var(--surface);
+      border: 1px solid var(--border-bright);
+      padding: 2rem;
+      max-width: 450px;
+      width: 90%;
+      position: relative;
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      background: transparent;
+      border: none;
+      color: var(--fg-muted);
+      cursor: pointer;
+      font-size: 1.25rem;
+    }
+
+    .modal-close:hover {
+      color: var(--fg);
+    }
+
+    .modal-title {
+      font-family: 'Doto', sans-serif;
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .modal-body {
+      font-family: 'Inter', sans-serif;
+      font-size: 0.85rem;
+      color: var(--fg-muted);
+      line-height: 1.6;
+    }
+
+    .modal-body ul {
+      margin-left: 1.5rem;
+      margin-bottom: 1rem;
+      margin-top: 0.5rem;
+    }
+
+    .modal-body li {
+      margin-bottom: 0.25rem;
+    }
+
+    .modal-donate-btn {
+      display: block;
+      width: 100%;
+      text-align: center;
+      background: var(--fg);
+      color: var(--bg);
+      padding: 1rem;
+      text-decoration: none;
+      font-family: 'Doto', sans-serif;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-top: 1.5rem;
+      transition: opacity 0.2s;
+    }
+
+    .modal-donate-btn:hover {
+      opacity: 0.9;
+    }
+
+    @media (max-width: 480px) {
+      h1 {
+        font-size: 2rem;
+      }
+      .submit-row {
+        flex-direction: column;
+        gap: 0.65rem;
+      }
+      .webclient-btn {
+        padding: 0.85rem 1.25rem;
+        width: 100%;
+        justify-content: center;
+      }
+      button.submit {
+        padding: 0.85rem 1.25rem;
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="container">
+    <header>
+      <div class="logo-wrapper" style="justify-content: space-between; gap: 0;">
+        <div style="display:flex; align-items:center; gap:0.75rem;">
+          <svg class="logo-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+            stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M9 9l10.5-3m0 6.553v3.75a2.25 2.25 0 01-1.632 2.163l-6.128 1.625a2.25 2.25 0 01-2.87-2.163V6.25m-1.5-3L9 9m10.5-3v4.5M9 9v11.25" />
+          </svg>
+          <h1>
+            <span class="brand-row">NullBeat <span class="lite-pill">LITE</span></span>
+            <span class="sub-author">by TheVolecitor</span>
+          </h1>
+        </div>
+        <div style="display:flex; flex-direction: column; gap:0.45rem; align-items:flex-end;">
+          <div style="display:flex; align-items:center; gap:0.45rem;">
+            <a href="/docs" class="docs-btn" title="NullBeat Lite API & Cache Docs">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                <polyline points="14,2 14,8 20,8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+                <polyline points="10,9 9,9 8,9" />
+              </svg>
+              Docs
+            </a>
+            <a href="https://discord.gg/85jnfZGfV5" target="_blank" rel="noopener noreferrer" class="discord-btn"
+              title="Discord Community">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
+              </svg>
+            </a>
+            <a href="javascript:void(0)" onclick="openWebClient()" class="web-btn" title="Open NullBeat Web Client">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="2" y1="12" x2="22" y2="12" />
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+              </svg>
+            </a>
+          </div>
+          <div style="display:flex; align-items:center; gap:0.45rem;">
+            <a href="https://nullbeat.thevolecitor.qzz.io" target="_blank" rel="noopener noreferrer" id="headServerBtn" class="head-server-btn" title="Upstream NullBeat Head Server">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="2" y1="12" x2="22" y2="12" />
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+              </svg>
+              Head ↗
+            </a>
+            <a href="https://github.com/TheVolecitor/nullbeat-lite" target="_blank" rel="noopener noreferrer" class="github-btn" title="NullBeat Lite on GitHub">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+              </svg>
+            </a>
+            <a href="https://linktr.ee/thevolecitor" target="_blank" rel="noopener noreferrer" class="support-btn" title="Support TheVolecitor">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+              </svg>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div class="header-meta">
+        <button class="usage-toggle-btn" id="usageBtn" onclick="toggleInstructions()">
+          How to use this? <span class="arrow-icon">▼</span>
+        </button>
+      </div>
+
+      <div class="usage-instructions" id="usageInstructions">
+        <ol>
+          <li>Download <a href="https://beatboss.thevolecitor.qzz.io/" target="_blank">BeatBoss</a>.</li>
+          <li>Open BeatBoss, navigate to <strong>Settings</strong> &rarr; <strong>Manage Addons</strong>, and click the
+            <strong>+</strong> button in the top right.
+          </li>
+          <li>Generate a manifest link on this page by clicking <strong>Install Addon</strong> below, then paste the
+            generated URL into the app.</li>
+        </ol>
+        <div class="usage-note">
+          Note: Initial caching can take up to 15-20 seconds. If a track doesn't play right away, try playing the same
+          track again after 20 seconds.<br><br>
+          Addon execution is limited to 5 concurrent stream requests at a time.
+        </div>
+      </div>
+    </header>
+
+    <!-- Debrid Provider Selection -->
+    <div class="group">
+      <label for="debridSelect">Debrid Provider</label>
+      <select id="debridSelect" class="debrid-select" onchange="onDebridChange(this.value)">
+        <option value="" disabled selected>Select Debrid Provider</option>
+        <option value="torbox">TorBox</option>
+        <option value="" disabled>More debrids coming soon</option>
+      </select>
+    </div>
+
+    <!-- Provider-specific configuration section -->
+    <div id="torboxSection" style="display: none;">
+      <div class="group">
+        <label>
+          Torbox API Key
+          <a href="https://torbox.app/settings" target="_blank" class="hint-link">Get Key</a>
+        </label>
+        <input type="text" id="torboxKey" placeholder="Enter API Key" autocomplete="off" spellcheck="false" />
+
+        <div class="invite-toggle-wrap" style="margin-top: 1rem; text-align: right;">
+          <button class="usage-toggle-btn" id="inviteToggleBtn" onclick="toggleInviteInput()"
+            style="border-radius: 4px;">
+            Have an invite code? <span class="arrow-icon">▼</span>
+          </button>
+        </div>
+
+        <div class="invite-input-wrap" id="inviteInputWrap" style="display: none; margin-top: 1rem;">
+          <input type="text" id="inviteCode" placeholder="Enter Invite Code (Optional)" autocomplete="off"
+            spellcheck="false" style="border-color: var(--accent);" />
+        </div>
+
+        <div class="promo-text">
+          Don't have Torbox? <a href="https://torbox.app/subscription?referral=85030fb4-d83b-4440-8f15-a881d3e1a102"
+            target="_blank">Buy with this link</a> to get an additional 25% days for free.
+        </div>
+      </div>
+    </div>
+
+    <div class="group">
+      <label>Stream Quality</label>
+      <div class="quality-selector">
+        <div class="q-row active" data-q="MAX" onclick="selectQuality(this)">
+          <div class="q-indicator">
+            <div class="q-indicator-dot"></div>
+          </div>
+          <div class="q-info">
+            <span class="q-title">Maximum</span>
+            <span class="q-desc">Best available + Fallbacks</span>
+          </div>
+        </div>
+        <div class="q-row" data-q="HI_RES_LOSSLESS" onclick="selectQuality(this)">
+          <div class="q-indicator">
+            <div class="q-indicator-dot"></div>
+          </div>
+          <div class="q-info">
+            <span class="q-title">Hi-Res LossLess</span>
+            <span class="q-desc">Up to 24-bit/192kHz Flac</span>
+          </div>
+        </div>
+        <div class="q-row" data-q="LOSSLESS" onclick="selectQuality(this)">
+          <div class="q-indicator">
+            <div class="q-indicator-dot"></div>
+          </div>
+          <div class="q-info">
+            <span class="q-title">CD Quality</span>
+            <span class="q-desc">16-bit/44.1kHz FLAC (HiFi)</span>
+          </div>
+        </div>
+        <div class="q-row" data-q="HIGH" onclick="selectQuality(this)">
+          <div class="q-indicator">
+            <div class="q-indicator-dot"></div>
+          </div>
+          <div class="q-info">
+            <span class="q-title">AAC</span>
+            <span class="q-desc">320 kbps</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="errorMsg" class="error-msg" style="margin-bottom: 1rem;"></div>
+    <div class="submit-row">
+      <button class="submit" onclick="generate()">Install Addon</button>
+      <button type="button" class="webclient-btn" onclick="openWebClient()" title="Open NullBeat Web Client">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8" fill="currentColor"></polygon></svg>
+        Web Client
+      </button>
+    </div>
+
+    <div class="result-box" id="resultBox">
+      <div class="result-header">Manifest URL Generated</div>
+      <p class="promo-text" style="margin-top:0;">Copy this link and paste it into BeatBoss.</p>
+      <div class="url-container">
+        <div class="url-text" id="manifestUrl"></div>
+        <button class="copy" id="copyBtn" onclick="copyManifest()">Copy</button>
+      </div>
+      <!-- <p class="promo-text" style="margin-top:1rem; font-size:0.8rem; color:var(--fg-muted);">
+        8spine module <a href="#" id="spineModuleBtn" download="nullbeat.8spine.js"
+          style="color:var(--primary); text-decoration:underline;">download</a>.
+      </p> -->
+    </div>
+
+    <!-- Generate Invite Section -->
+      <div
+        style="margin-top: 2rem; border-top: 1px dashed var(--border-bright); padding-top: 2rem; text-align: center;">
+        <button class="usage-toggle-btn" onclick="generateInvite()"
+          style="padding: 0.75rem 1.5rem; font-size: 0.85rem; border-radius: 9999px;">
+          Generate Invite for a Friend
+        </button>
+        <div id="inviteErrorMsg" class="error-msg" style="margin-top: 1rem;"></div>
+
+        <div class="result-box" id="inviteResultBox" style="margin-top: 1rem; text-align: left;">
+          <div class="result-header">Invite Code</div>
+          <p class="promo-text" style="margin-top:0;">Share this with a friend so they can bypass closed registrations.
+            <br><strong style="color: var(--accent);">Warning: This code will only be shown once!</strong>
+          </p>
+          <div class="url-container">
+            <div class="url-text" id="generatedInviteCode"></div>
+            <button class="copy" id="copyInviteBtn" onclick="copyInvite()">Copy</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Subtle External Reference -->
+      <div class="subtle-promo">
+        Looking for more like this? Check out <a href="https://aero.pandoric.dpdns.org/" target="_blank">Aero</a> by
+        tirth0jain
+      </div>
+
+      <!-- Legal Footer Section -->
+      <footer class="legal-footer">
+        <h3>MIT License & As-Is Notice</h3>
+        <p>
+          Released under the MIT License. Copyright &copy; 2026 TheVolecitor.
+          Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files to use, copy, modify, merge, publish, and distribute the Software.
+        </p>
+        <p>
+          THE SOFTWARE IS PROVIDED &ldquo;AS IS&rdquo;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+        </p>
+      </footer>
+    </div>
+
+    <script>
+      const WB = window.location.origin;
+      let quality = 'MAX';
+
+      function onDebridChange(val) {
+        const section = document.getElementById('torboxSection');
+        if (val === 'torbox') {
+          section.style.display = 'block';
+          setTimeout(() => {
+            section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }, 50);
+        } else {
+          section.style.display = 'none';
+        }
+      }
+
+      function toggleInstructions() {
+        const el = document.getElementById('usageInstructions');
+        const btn = document.getElementById('usageBtn');
+        el.classList.toggle('show');
+        btn.classList.toggle('open');
+      }
+
+      function toggleInviteInput() {
+        const el = document.getElementById('inviteInputWrap');
+        const btn = document.getElementById('inviteToggleBtn');
+        if (el.style.display === 'none') {
+          el.style.display = 'block';
+          btn.classList.add('open');
+        } else {
+          el.style.display = 'none';
+          btn.classList.remove('open');
+          document.getElementById('inviteCode').value = '';
+        }
+      }
+
+      function selectQuality(el) {
+        if (el.classList.contains('disabled')) return;
+        document.querySelectorAll('.q-row').forEach(row => row.classList.remove('active'));
+        el.classList.add('active');
+        quality = el.dataset.q;
+      }
+
+      function b64e(s) {
+        return btoa(unescape(encodeURIComponent(s)))
+          .replaceAll('+', '-')
+          .replaceAll('/', '_')
+          .replace(/=+$/, '');
+      }
+
+      async function generate() {
+        const debrid = document.getElementById('debridSelect').value;
+        const keyInput = document.getElementById('torboxKey').value.trim();
+        const inviteInput = document.getElementById('inviteCode').value.trim();
+        const err = document.getElementById('errorMsg');
+
+        if (!debrid) {
+          err.textContent = "[Error] Please select a debrid provider.";
+          err.style.display = "block";
+          return;
+        }
+
+        if (!keyInput) {
+          err.textContent = "[Error] API Key cannot be blank.";
+          err.style.display = "block";
+          return;
+        }
+
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(keyInput)) {
+          err.textContent = "[Error] Invalid API Key format. Must be a valid UUID.";
+          err.style.display = "block";
+          return;
+        }
+
+        err.style.display = "none";
+
+        try {
+          let verifyUrl = `${WB}/api/verify-key?key=${encodeURIComponent(keyInput)}`;
+          if (inviteInput) {
+            verifyUrl += `&invite=${encodeURIComponent(inviteInput)}`;
+          }
+          const verifyRes = await fetch(verifyUrl);
+          if (verifyRes.ok) {
+            const verifyData = await verifyRes.json();
+            if (verifyData.allowed === false) {
+              err.textContent = verifyData.error || "[Error] Registrations closed.";
+              err.style.display = "block";
+              return;
+            }
+          }
+        } catch (e) { }
+
+        const token = b64e(keyInput + '|||' + quality);
+        const url = `${WB}/${token}/manifest.json`;
+        const spineUrl = `${WB}/${token}/nullbeat.8spine.js`;
+
+        const resBox = document.getElementById('resultBox');
+        document.getElementById('manifestUrl').textContent = url;
+        const spineBtn = document.getElementById('spineModuleBtn');
+        if (spineBtn) {
+          spineBtn.href = spineUrl;
+        }
+        resBox.classList.add('show');
+
+        setTimeout(() => {
+          resBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 50);
+      }
+
+      function copyManifest() {
+        const url = document.getElementById('manifestUrl').textContent;
+        navigator.clipboard.writeText(url).then(() => {
+          const btn = document.getElementById('copyBtn');
+          const orig = btn.textContent;
+          btn.textContent = 'Copied';
+          setTimeout(() => { btn.textContent = orig; }, 2000);
+        });
+      }
+
+      function openWebClient() {
+        const keyInput = document.getElementById('torboxKey')?.value?.trim() || localStorage.getItem('nullbeat_api_key') || localStorage.getItem('nb_key') || '';
+        if (keyInput) {
+          try {
+            localStorage.setItem('nullbeat_api_key', keyInput);
+            localStorage.setItem('nb_key', keyInput);
+          } catch (_) {}
+        }
+        if (quality) {
+          try {
+            localStorage.setItem('nullbeat_quality', quality);
+            localStorage.setItem('nb_quality', quality);
+          } catch (_) {}
+        }
+        const url = '/web' + (keyInput ? '?key=' + encodeURIComponent(keyInput) : '');
+        window.location.href = url;
+      }
+
+      async function generateInvite() {
+        const keyInput = document.getElementById('torboxKey').value.trim();
+        const err = document.getElementById('inviteErrorMsg');
+        const resBox = document.getElementById('inviteResultBox');
+
+        err.style.display = "none";
+        resBox.classList.remove('show');
+
+        if (!keyInput) {
+          err.textContent = "[Error] You must enter your Torbox API Key above to generate an invite.";
+          err.style.display = "block";
+          return;
+        }
+
+        try {
+          const res = await fetch(`${WB}/api/generate-invite?key=${encodeURIComponent(keyInput)}`);
+          const data = await res.json();
+
+          if (res.ok && data.inviteCode) {
+            document.getElementById('generatedInviteCode').textContent = data.inviteCode;
+            resBox.classList.add('show');
+          } else {
+            err.textContent = data.error || "[Error] Failed to generate invite.";
+            err.style.display = "block";
+          }
+        } catch (e) {
+          err.textContent = "[Error] Network failure.";
+          err.style.display = "block";
+        }
+      }
+
+      function copyInvite() {
+        const code = document.getElementById('generatedInviteCode').textContent;
+        navigator.clipboard.writeText(code).then(() => {
+          const btn = document.getElementById('copyInviteBtn');
+          const orig = btn.textContent;
+          btn.textContent = 'Copied';
+          setTimeout(() => { btn.textContent = orig; }, 2000);
+        });
+      }
+
+        document.addEventListener('DOMContentLoaded', () => {
+        // Dynamically fetch configured Head Server URL
+        fetch('/api/config')
+          .then(r => r.json())
+          .then(cfg => {
+            if (cfg && cfg.headServerUrl) {
+              const btn = document.getElementById('headServerBtn');
+              if (btn) btn.href = cfg.headServerUrl;
+            }
+          })
+          .catch(() => {});
+
+        const keyInput = document.getElementById('torboxKey');
+        const savedKey = localStorage.getItem('nullbeat_api_key') || localStorage.getItem('nb_key') || '';
+        if (keyInput && savedKey) {
+          keyInput.value = savedKey;
+        }
+        keyInput?.addEventListener('input', () => {
+          const val = keyInput.value.trim();
+          if (val) {
+            try {
+              localStorage.setItem('nullbeat_api_key', val);
+              localStorage.setItem('nb_key', val);
+            } catch (_) {}
+          }
+        });
+      });
+    </script>
+
+</body>
+
+</html>

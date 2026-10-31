@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NullBeat API Docs</title>
+  <meta name="description" content="API documentation for checking NullBeat track cache availability on TorBox." />
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Doto:wght@700;800&family=Inter:wght@400;500;600&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap"
+    rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #000000;
+      --fg: #e0e0e0;
+      --fg-muted: #888888;
+      --fg-dim: #555555;
+      --border: #222222;
+      --border-bright: #333333;
+      --accent: #e52b20;
+      --surface: #0a0a0a;
+      --surface-card: #111111;
+      --mono: 'Space Mono', monospace;
+      --sans: 'Inter', sans-serif;
+      --doto: 'Doto', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--mono);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      letter-spacing: -0.01em;
+    }
+
+    /* Topbar */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: #000;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.875rem 2rem;
+    }
+
+    .topbar-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      text-decoration: none;
+    }
+
+    .topbar-logo {
+      font-family: var(--doto);
+      font-size: 1.15rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      color: var(--fg);
+    }
+
+    .topbar-sep {
+      color: var(--fg-dim);
+      margin: 0 0.4rem;
+    }
+
+    .topbar-page {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--fg-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .topbar-back {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--fg-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      text-decoration: none;
+      border: 1px solid var(--border-bright);
+      padding: 0.35rem 0.75rem;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .topbar-back:hover {
+      color: var(--fg);
+      border-color: var(--fg-muted);
+    }
+
+    /* Layout */
+    .layout {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      min-height: calc(100vh - 57px);
+      max-width: 1160px;
+      margin: 0 auto;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      border-right: 1px solid var(--border);
+      padding: 2rem 1.5rem;
+      position: sticky;
+      top: 57px;
+      height: calc(100vh - 57px);
+      overflow-y: auto;
+    }
+
+    .sidebar-label {
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: var(--fg-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sidebar-nav {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.1rem;
+    }
+
+    .sidebar-nav a {
+      display: block;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--fg-muted);
+      text-decoration: none;
+      padding: 0.35rem 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      border-left: 2px solid transparent;
+      transition: all 0.15s;
+    }
+
+    .sidebar-nav a:hover,
+    .sidebar-nav a.active {
+      color: var(--fg);
+      border-left-color: var(--accent);
+      background: rgba(229, 43, 32, 0.05);
+    }
+
+    /* Main Content */
+    .main {
+      padding: 3rem 3.5rem 5rem;
+      max-width: 780px;
+    }
+
+    /* Hero */
+    .hero {
+      margin-bottom: 3rem;
+      padding-bottom: 2.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .hero-eyebrow {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--accent);
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .hero-eyebrow::before {
+      content: '';
+      display: inline-block;
+      width: 18px;
+      height: 1px;
+      background: var(--accent);
+    }
+
+    .hero h1 {
+      font-family: var(--doto);
+      font-size: 2.5rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      line-height: 1.1;
+      margin-bottom: 1rem;
+    }
+
+    .hero-sub {
+      font-family: var(--sans);
+      font-size: 1rem;
+      color: var(--fg-muted);
+      line-height: 1.7;
+      max-width: 560px;
+    }
+
+    /* Section headings */
+    .section {
+      margin-bottom: 3.5rem;
+    }
+
+    .section-num {
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .section-num::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    h2 {
+      font-family: var(--doto);
+      font-size: 1.4rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 1.25rem;
+      line-height: 1.2;
+      color: #fff;
+    }
+
+    p {
+      font-family: var(--sans);
+      font-size: 0.92rem;
+      color: #aaa;
+      line-height: 1.75;
+      margin-bottom: 1rem;
+    }
+
+    /* Code Tabs */
+    .code-tabs {
+      display: flex;
+      gap: 1rem;
+      margin: 1.5rem 0 1rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--fg-muted);
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      padding: 0.25rem 0.5rem;
+      transition: color 0.2s;
+      position: relative;
+    }
+
+    .tab-btn:hover {
+      color: var(--fg);
+    }
+
+    .tab-btn.active {
+      color: var(--fg);
+      font-weight: bold;
+    }
+
+    .tab-btn.active::after {
+      content: '';
+      position: absolute;
+      bottom: -0.6rem;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: var(--accent);
+    }
+
+    .tab-pane {
+      display: none;
+    }
+
+    .tab-pane.active {
+      display: block;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(2px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Code Blocks */
+    code {
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      background: var(--surface);
+      border: 1px solid var(--border-bright);
+      padding: 0.15em 0.45em;
+      color: #ccc;
+    }
+
+    .code-container {
+      position: relative;
+      margin: 1rem 0 1.5rem;
+    }
+
+    pre {
+      background: var(--surface-card);
+      border: 1px solid var(--border-bright);
+      padding: 1.25rem 1.5rem;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      border: none;
+      padding: 0;
+      font-size: 0.8rem;
+      line-height: 1.65;
+      color: #ccc;
+    }
+
+    .pre-label {
+      position: absolute;
+      top: 0.6rem;
+      right: 0.75rem;
+      font-size: 0.6rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--fg-dim);
+      pointer-events: none;
+    }
+
+    .copy-btn {
+      position: absolute;
+      top: 0.6rem;
+      right: 4.5rem;
+      background: var(--surface);
+      border: 1px solid var(--border-bright);
+      color: var(--fg-muted);
+      font-family: var(--mono);
+      font-size: 0.6rem;
+      text-transform: uppercase;
+      padding: 0.2rem 0.5rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      z-index: 10;
+    }
+
+    .copy-btn:hover {
+      color: var(--fg);
+      border-color: var(--fg-muted);
+    }
+
+    .yaml-box .copy-btn {
+      right: 4rem;
+    }
+
+    /* Subtle Syntax Colors */
+    .cm {
+      color: #64748b;
+    }
+
+    .ck {
+      color: #94a3b8;
+    }
+
+    .cs {
+      color: #7dd3fc;
+    }
+
+    .cn {
+      color: #cbd5e1;
+    }
+
+    .cf {
+      color: #e2e8f0;
+    }
+
+    .cv {
+      color: #f8fafc;
+    }
+
+    /* Filename example */
+    .filename-box {
+      background: var(--surface);
+      border: 1px solid var(--border-bright);
+      padding: 1rem 1.25rem;
+      margin: 1rem 0;
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      line-height: 1.8;
+      color: #999;
+    }
+
+    .filename-part-t {
+      color: #fff;
+    }
+
+    .filename-part-a {
+      color: #ccc;
+    }
+
+    .filename-part-id {
+      color: #aaa;
+    }
+
+    .filename-part-q {
+      color: var(--accent);
+      font-weight: bold;
+    }
+
+    /* Footer */
+    .doc-footer {
+      margin-top: 4rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--fg-dim);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .doc-footer a {
+      color: var(--fg-muted);
+      text-decoration: none;
+    }
+
+    .doc-footer a:hover {
+      color: var(--fg);
+    }
+
+    /* YAML Box */
+    .yaml-box {
+      border-left: 2px solid var(--accent);
+      padding-left: 1rem;
+      margin: 1.5rem 0;
+    }
+
+    .yaml-box pre {
+      margin: 0;
+      border-color: var(--border);
+    }
+
+    .discord-btn {
+      background: transparent;
+      border: 1px solid var(--border-bright);
+      color: var(--fg-muted);
+      width: 29px;
+      height: 29px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .discord-btn:hover {
+      color: var(--fg);
+      border-color: var(--fg-muted);
+    }
+
+    @media (max-width: 780px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        display: none;
+      }
+
+      .main {
+        padding: 2rem 1.5rem 4rem;
+      }
+
+      h2 {
+        font-size: 1.2rem;
+      }
+
+      .copy-btn {
+        display: none;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <nav class="topbar">
+    <a href="/" class="topbar-brand">
+      <span class="topbar-logo">NullBeat</span>
+      <span class="topbar-sep">//</span>
+      <span class="topbar-page">API Docs</span>
+    </a>
+    <div style="display:flex; align-items:center; gap:0.5rem;">
+      <a href="https://discord.gg/85jnfZGfV5" target="_blank" rel="noopener noreferrer" class="discord-btn"
+        title="Discord Community">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+          <path
+            d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
+        </svg>
+      </a>
+      <a href="/" class="topbar-back">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="15,18 9,12 15,6" />
+        </svg>
+        Back
+      </a>
+    </div>
+  </nav>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-label">API Reference</div>
+      <ul class="sidebar-nav">
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#req-auth">1. Auth Request</a></li>
+        <li><a href="#req-search">2. Search Request</a></li>
+        <li><a href="#filenames">3. Filename Format</a></li>
+        <li><a href="#req-check">4. TorBox Check</a></li>
+        <li><a href="#code-examples">Code Examples</a></li>
+      </ul>
+    </aside>
+
+    <main class="main">
+      <div class="hero" id="overview">
+        <div class="hero-eyebrow">NullBeat API</div>
+        <h1>Cache Integration</h1>
+        <p class="hero-sub">How to verify and stream cached tracks from TorBox.</p>
+      </div>
+
+      <section class="section" id="req-auth">
+        <div class="section-num">01. Auth</div>
+        <h2>Tidal Auth Request</h2>
+        <p>Fetch a Client Credentials token from Tidal. Requires a Tidal Developer Client ID and Secret.</p>
+
+        <div class="yaml-box code-container">
+          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          <pre><code><span class="ck">POST</span> <span class="cs">https://auth.tidal.com/v1/oauth2/token</span>
+<span class="cm">Headers:</span>
+  <span class="cf">Authorization</span>: Basic &lt;base64(CLIENT_ID:CLIENT_SECRET)&gt;
+  <span class="cf">Content-Type</span>: application/x-www-form-urlencoded
+
+<span class="cm">Body:</span>
+  grant_type=client_credentials</code><span class="pre-label">HTTP</span></pre>
+        </div>
+      </section>
+
+      <section class="section" id="req-search">
+        <div class="section-num">02. Search</div>
+        <h2>Tidal Search Request</h2>
+        <p>Search Tidal's OpenAPI v2. You must include specific relationship metadata to get artists and album art.</p>
+
+        <div class="yaml-box code-container">
+          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          <pre><code><span class="ck">GET</span> <span class="cs">https://openapi.tidal.com/v2/searchResults</span>
+<span class="cm">Query Parameters:</span>
+  <span class="cf">filter[query]</span>: "Monkeys Spinning Monkeys Kevin MacLeod"
+  <span class="cf">countryCode</span>: "US"
+  <span class="cf">include</span>: "tracks.artists,tracks.albums.coverArt,albums.artists,albums.coverArt,artists.profileArt"
+
+<span class="cm">Headers:</span>
+  <span class="cf">Authorization</span>: Bearer &lt;ACCESS_TOKEN&gt;
+  <span class="cf">Accept</span>: application/vnd.api+json</code><span class="pre-label">HTTP</span></pre>
+        </div>
+        <p>Tidal returns the <code>relationships.tracks.data</code> array natively ordered by relevance. Pick the top 2
+          tracks and map them to their full objects using the <code>included</code> array.</p>
+      </section>
+
+      <section class="section" id="filenames">
+        <div class="section-num">03. Format</div>
+        <h2>Deterministic Filenames</h2>
+        <p>TorBox caches are verified using MD5 hashes of standard filenames.</p>
+
+        <div class="filename-box">
+          <span class="filename-part-t">{Clean Title}</span>
+          -
+          <span class="filename-part-a">{Clean Primary Artist}</span>
+          [NullBeat
+          <span class="filename-part-id">{Tidal Track ID}</span>
+          -
+          <span class="filename-part-q">{Quality Label}</span>
+          ].<em>ext</em>
+        </div>
+
+        <p>Example for Monkeys Spinning Monkeys by Kevin MacLeod (Tidal Track ID: 359051850):</p>
+        <div class="filename-box">
+          <span class="filename-part-t">Monkeys Spinning Monkeys</span> - <span class="filename-part-a">Kevin
+            MacLeod</span> [NullBeat <span class="filename-part-id">359051850</span> - <span
+            class="filename-part-q">Hi-Res</span>].flac<br>
+          <span class="filename-part-t">Monkeys Spinning Monkeys</span> - <span class="filename-part-a">Kevin
+            MacLeod</span> [NullBeat <span class="filename-part-id">359051850</span> - <span
+            class="filename-part-q">HiFi CD</span>].flac<br>
+          <span class="filename-part-t">Monkeys Spinning Monkeys</span> - <span class="filename-part-a">Kevin
+            MacLeod</span> [NullBeat <span class="filename-part-id">359051850</span> - <span
+            class="filename-part-q">320kbps</span>].m4a<br>
+          <span class="filename-part-t">Monkeys Spinning Monkeys</span> - <span class="filename-part-a">Kevin
+            MacLeod</span> [NullBeat <span class="filename-part-id">359051850</span> - <span
+            class="filename-part-q">96kbps</span>].m4a
+        </div>
+        <p><em>Note: Sanitize the title and artist by stripping characters: <code>/ \ ? % * : | " &lt; &gt;</code></em>
+        </p>
+      </section>
+
+      <section class="section" id="req-check">
+        <div class="section-num">04. Cache</div>
+        <h2>TorBox Cache Check</h2>
+        <p>Hash the generated filenames using MD5 and POST them to TorBox.</p>
+
+        <div class="yaml-box code-container">
+          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          <pre><code><span class="ck">POST</span> <span class="cs">https://api.torbox.app/v1/api/torrents/checkcached</span>
+<span class="cm">Query Parameters:</span>
+  <span class="cf">format</span>: "object"
+  <span class="cf">list_files</span>: "false"
+
+<span class="cm">Headers:</span>
+  <span class="cf">Authorization</span>: Bearer &lt;TORBOX_API_KEY&gt;
+  <span class="cf">Content-Type</span>: application/json
+
+<span class="cm">Body:</span>
+  {
+    "hashes": ["md5hex1", "md5hex2", ...]
+  }</code><span class="pre-label">HTTP</span></pre>
+        </div>
+      </section>
+
+      <section class="section" id="code-examples">
+        <div class="section-num">05. Demos</div>
+        <h2>Code Examples</h2>
+        <p>Reference implementations. Create a <code>.env</code> file in your project directory with your credentials:
+        </p>
+
+        <div class="code-container">
+          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          <pre><code><span class="cf">TIDAL_CLIENT_ID</span>=your_tidal_client_id_here
+<span class="cf">TIDAL_CLIENT_SECRET</span>=your_tidal_client_secret_here
+<span class="cf">TORBOX_API_KEY</span>=your_torbox_api_key_here</code><span class="pre-label">.env</span></pre>
+        </div>
+
+        <!-- Tabs Navigation -->
+        <div class="code-tabs">
+          <button class="tab-btn active" onclick="switchCodeTab(event, 'nodejs')">Node.js</button>
+          <button class="tab-btn" onclick="switchCodeTab(event, 'python')">Python</button>
+        </div>
+
+        <!-- Node.js Tab -->
+        <div id="tab-nodejs" class="tab-pane active">
+          <div class="code-container">
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            <pre><code><span class="ck">import</span> crypto <span class="ck">from</span> <span class="cs">'node:crypto'</span>;
+
+<span class="cf">const</span> CLIENT_ID = process.env.<span class="cv">TIDAL_CLIENT_ID</span>;
+<span class="cf">const</span> CLIENT_SECRET = process.env.<span class="cv">TIDAL_CLIENT_SECRET</span>;
+<span class="cf">const</span> TORBOX_API_KEY = process.env.<span class="cv">TORBOX_API_KEY</span>;
+
+<span class="ck">if</span> (!CLIENT_ID || !CLIENT_SECRET || !TORBOX_API_KEY) {
+  console.<span class="cf">error</span>(<span class="cs">"Missing credentials in environment variables."</span>);
+  process.<span class="cf">exit</span>(<span class="cn">1</span>);
+}
+
+<span class="cm">// 1. Auth</span>
+<span class="cf">const</span> authData = Buffer.<span class="cf">from</span>(<span class="cs">`<span class="cv">${CLIENT_ID}</span>:<span class="cv">${CLIENT_SECRET}</span>`</span>).<span class="cf">toString</span>(<span class="cs">'base64'</span>);
+<span class="cf">const</span> tokenRes = <span class="ck">await</span> <span class="cf">fetch</span>(<span class="cs">'https://auth.tidal.com/v1/oauth2/token'</span>, {
+  method: <span class="cs">'POST'</span>,
+  headers: { Authorization: <span class="cs">`Basic <span class="cv">${authData}</span>`</span>, <span class="cs">'Content-Type'</span>: <span class="cs">'application/x-www-form-urlencoded'</span> },
+  body: <span class="cs">'grant_type=client_credentials'</span>,
+});
+<span class="cf">const</span> { access_token } = <span class="ck">await</span> tokenRes.<span class="cf">json</span>();
+
+<span class="cm">// 2. Search</span>
+<span class="cf">const</span> searchRes = <span class="ck">await</span> <span class="cf">fetch</span>(
+  <span class="cs">`https://openapi.tidal.com/v2/searchResults?filter[query]=<span class="cv">${encodeURIComponent('Monkeys Spinning Monkeys Kevin MacLeod')}</span>&amp;countryCode=US&amp;include=tracks.artists,tracks.albums.coverArt`</span>,
+  { headers: { Authorization: <span class="cs">`Bearer <span class="cv">${access_token}</span>`</span>, Accept: <span class="cs">'application/vnd.api+json'</span> } }
+);
+<span class="cf">const</span> json = <span class="ck">await</span> searchRes.<span class="cf">json</span>();
+
+<span class="cm">// 3. Parse map based on relationships</span>
+<span class="cf">const</span> includedMap = <span class="ck">new</span> <span class="cf">Map</span>(json.included.<span class="cf">map</span>(i =&gt; [<span class="cs">`<span class="cv">${i.type}</span>:<span class="cv">${i.id}</span>`</span>, i]));
+<span class="cf">const</span> trackRefs = json.data?.[<span class="cn">0</span>]?.relationships?.tracks?.data || [];
+<span class="cf">const</span> tracks = trackRefs
+  .<span class="cf">slice</span>(<span class="cn">0</span>, <span class="cn">2</span>)
+  .<span class="cf">map</span>(ref =&gt; includedMap.<span class="cf">get</span>(<span class="cs">`tracks:<span class="cv">${ref.id}</span>`</span>))
+  .<span class="cf">filter</span>(Boolean);
+
+<span class="cm">// 4. Build hashes &amp; print candidates</span>
+<span class="cf">const</span> clean = s =&gt; (s || <span class="cs">''</span>).<span class="cf">replace</span>(<span class="cs">/[\/\\?%*:|"&lt;&gt;]/g</span>, <span class="cs">''</span>).<span class="cf">trim</span>();
+<span class="cf">const</span> tiers = [{ label: <span class="cs">'Hi-Res'</span>, ext: <span class="cs">'flac'</span> }, { label: <span class="cs">'HiFi CD'</span>, ext: <span class="cs">'flac'</span> }, { label: <span class="cs">'320kbps'</span>, ext: <span class="cs">'m4a'</span> }, { label: <span class="cs">'96kbps'</span>, ext: <span class="cs">'m4a'</span> }];
+<span class="cf">const</span> filenamesSet = <span class="ck">new</span> <span class="cf">Set</span>();
+<span class="cf">const</span> hashes = [];
+
+console.<span class="cf">log</span>(<span class="cs">'Checking candidate filenames &amp; MD5 hashes:'</span>);
+<span class="ck">for</span> (<span class="cf">const</span> t <span class="ck">of</span> tracks) {
+  <span class="cf">const</span> artistNames = (t.relationships?.artists?.data || [])
+    .<span class="cf">map</span>(a =&gt; includedMap.<span class="cf">get</span>(<span class="cs">`artists:<span class="cv">${a.id}</span>`</span>)?.attributes?.name).<span class="cf">filter</span>(Boolean);
+  <span class="cf">const</span> id = String(t.id).<span class="cf">replace</span>(<span class="cs">/^track:/</span>, <span class="cs">''</span>);
+  <span class="ck">for</span> (<span class="cf">const</span> tier <span class="ck">of</span> tiers) {
+    <span class="cf">const</span> fn = <span class="cs">`<span class="cv">${clean(t.attributes?.title)}</span> - <span class="cv">${clean(artistNames[0])}</span> [NullBeat <span class="cv">${id}</span> - <span class="cv">${tier.label}</span>].<span class="cv">${tier.ext}</span>`</span>;
+    <span class="cf">const</span> md5 = crypto.<span class="cf">createHash</span>(<span class="cs">'md5'</span>).<span class="cf">update</span>(fn).<span class="cf">digest</span>(<span class="cs">'hex'</span>);
+    filenamesSet.<span class="cf">add</span>(fn);
+    hashes.<span class="cf">push</span>(md5);
+    console.<span class="cf">log</span>(<span class="cs">`  <span class="cv">${md5}</span> -&gt; <span class="cv">${fn}</span>`</span>);
+  }
+}
+
+<span class="cm">// 5. Check TorBox</span>
+<span class="cf">const</span> tbRes = <span class="ck">await</span> <span class="cf">fetch</span>(<span class="cs">'https://api.torbox.app/v1/api/torrents/checkcached?format=object&amp;list_files=false'</span>, {
+  method: <span class="cs">'POST'</span>,
+  headers: { Authorization: <span class="cs">`Bearer <span class="cv">${TORBOX_API_KEY}</span>`</span>, <span class="cs">'Content-Type'</span>: <span class="cs">'application/json'</span> },
+  body: JSON.<span class="cf">stringify</span>({ hashes }),
+});
+<span class="cf">const</span> { data } = <span class="ck">await</span> tbRes.<span class="cf">json</span>();
+
+<span class="cm">// 6. Result (TorBox keys response by infohash, match by name)</span>
+<span class="cf">const</span> hits = Object.<span class="cf">values</span>(data || {}).<span class="cf">map</span>(i =&gt; i?.name).<span class="cf">filter</span>(n =&gt; filenamesSet.<span class="cf">has</span>(n));
+console.<span class="cf">log</span>(hits.length ? <span class="cs">`✓ CACHED: <span class="cv">${hits[0]}</span>`</span> : <span class="cs">'✗ Not cached yet'</span>);</code></pre>
+          </div>
+        </div>
+
+        <!-- Python Tab -->
+        <div id="tab-python" class="tab-pane">
+          <div class="code-container">
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            <pre><code><span class="ck">import</span> os, requests, hashlib, base64
+
+<span class="cm"># Load .env file automatically</span>
+<span class="ck">try</span>:
+    <span class="ck">from</span> dotenv <span class="ck">import</span> load_dotenv
+    <span class="cf">load_dotenv</span>()
+<span class="ck">except</span> ImportError:
+    <span class="ck">if</span> os.path.<span class="cf">exists</span>(<span class="cs">'.env'</span>):
+        <span class="ck">with</span> <span class="cf">open</span>(<span class="cs">'.env'</span>, <span class="cs">'r'</span>) <span class="ck">as</span> f:
+            <span class="ck">for</span> line <span class="ck">in</span> f:
+                line = line.<span class="cf">strip</span>()
+                <span class="ck">if</span> line <span class="ck">and not</span> line.<span class="cf">startswith</span>(<span class="cs">'#'</span>) <span class="ck">and</span> <span class="cs">'='</span> <span class="ck">in</span> line:
+                    k, v = line.<span class="cf">split</span>(<span class="cs">'='</span>, <span class="cn">1</span>)
+                    os.environ.<span class="cf">setdefault</span>(k.<span class="cf">strip</span>(), v.<span class="cf">strip</span>().<span class="cf">strip</span>(<span class="cs">'"\''</span>))
+
+CLIENT_ID = os.environ.<span class="cf">get</span>(<span class="cs">'TIDAL_CLIENT_ID'</span>)
+CLIENT_SECRET = os.environ.<span class="cf">get</span>(<span class="cs">'TIDAL_CLIENT_SECRET'</span>)
+TORBOX_KEY = os.environ.<span class="cf">get</span>(<span class="cs">'TORBOX_API_KEY'</span>)
+
+<span class="ck">if not</span> CLIENT_ID <span class="ck">or not</span> CLIENT_SECRET <span class="ck">or not</span> TORBOX_KEY:
+    <span class="ck">print</span>(<span class="cs">"Missing credentials in environment variables."</span>)
+    <span class="cf">exit</span>(<span class="cn">1</span>)
+
+<span class="cm"># 1. Auth</span>
+creds = base64.b64encode(<span class="cs">f"<span class="cv">{CLIENT_ID}</span>:<span class="cv">{CLIENT_SECRET}</span>"</span>.<span class="cf">encode</span>()).<span class="cf">decode</span>()
+auth_res = requests.<span class="cf">post</span>(<span class="cs">'https://auth.tidal.com/v1/oauth2/token'</span>, 
+    headers={<span class="cs">'Authorization'</span>: <span class="cs">f'Basic <span class="cv">{creds}</span>'</span>}, 
+    data={<span class="cs">'grant_type'</span>: <span class="cs">'client_credentials'</span>})
+token = auth_res.<span class="cf">json</span>()[<span class="cs">'access_token'</span>]
+
+<span class="cm"># 2. Search</span>
+search_res = requests.<span class="cf">get</span>(<span class="cs">'https://openapi.tidal.com/v2/searchResults'</span>,
+    headers={<span class="cs">'Authorization'</span>: <span class="cs">f'Bearer <span class="cv">{token}</span>'</span>, <span class="cs">'Accept'</span>: <span class="cs">'application/vnd.api+json'</span>},
+    params={<span class="cs">'filter[query]'</span>: <span class="cs">'Monkeys Spinning Monkeys Kevin MacLeod'</span>, <span class="cs">'countryCode'</span>: <span class="cs">'US'</span>, <span class="cs">'include'</span>: <span class="cs">'tracks.artists'</span>})
+data = search_res.<span class="cf">json</span>()
+
+<span class="cm"># 3. Parse included map based on relationships</span>
+included = { <span class="cs">f"<span class="cv">{i['type']}</span>:<span class="cv">{i['id']}</span>"</span>: i <span class="ck">for</span> i <span class="ck">in</span> data.get(<span class="cs">'included'</span>, []) }
+track_refs = data[<span class="cs">'data'</span>][0].get(<span class="cs">'relationships'</span>, {}).get(<span class="cs">'tracks'</span>, {}).get(<span class="cs">'data'</span>, [])[:2]
+
+tracks = []
+<span class="ck">for</span> t_ref <span class="ck">in</span> track_refs:
+    t = included.get(<span class="cs">f"tracks:<span class="cv">{t_ref['id']}</span>"</span>)
+    <span class="ck">if</span> t: tracks.<span class="cf">append</span>(t)
+
+<span class="cm"># 4. Build hashes &amp; print candidates</span>
+<span class="ck">def</span> <span class="cf">clean</span>(s): <span class="ck">return</span> <span class="cs">""</span>.<span class="cf">join</span>([c <span class="ck">for</span> c <span class="ck">in</span> (s <span class="ck">or</span> <span class="cs">""</span>) <span class="ck">if</span> c <span class="ck">not in</span> <span class="cs">r'/\?%*:|"&lt;&gt;'</span>]).<span class="cf">strip</span>()
+tiers = [{<span class="cs">'label'</span>: <span class="cs">'Hi-Res'</span>, <span class="cs">'ext'</span>: <span class="cs">'flac'</span>}, {<span class="cs">'label'</span>: <span class="cs">'HiFi CD'</span>, <span class="cs">'ext'</span>: <span class="cs">'flac'</span>}, {<span class="cs">'label'</span>: <span class="cs">'320kbps'</span>, <span class="cs">'ext'</span>: <span class="cs">'m4a'</span>}, {<span class="cs">'label'</span>: <span class="cs">'96kbps'</span>, <span class="cs">'ext'</span>: <span class="cs">'m4a'</span>}]
+hashes = []
+filenames_set = set()
+
+<span class="ck">print</span>(<span class="cs">"Checking candidate filenames &amp; MD5 hashes:"</span>)
+<span class="ck">for</span> t <span class="ck">in</span> tracks:
+    art_refs = t.get(<span class="cs">'relationships'</span>, {}).get(<span class="cs">'artists'</span>, {}).get(<span class="cs">'data'</span>, [])
+    artist = included.get(<span class="cs">f"artists:<span class="cv">{art_refs[0]['id']}</span>"</span>, {}).get(<span class="cs">'attributes'</span>, {}).get(<span class="cs">'name'</span>, <span class="cs">''</span>) <span class="ck">if</span> art_refs <span class="ck">else</span> <span class="cs">''</span>
+    tid = str(t[<span class="cs">'id'</span>]).<span class="cf">replace</span>(<span class="cs">'track:'</span>, <span class="cs">''</span>)
+    
+    <span class="ck">for</span> tier <span class="ck">in</span> tiers:
+        fn = <span class="cs">f"<span class="cv">{clean(t['attributes']['title'])}</span> - <span class="cv">{clean(artist)}</span> [NullBeat <span class="cv">{tid}</span> - <span class="cv">{tier['label']}</span>].<span class="cv">{tier['ext']}</span>"</span>
+        md5 = hashlib.md5(fn.<span class="cf">encode</span>()).<span class="cf">hexdigest</span>()
+        filenames_set.add(fn)
+        hashes.append(md5)
+        <span class="ck">print</span>(<span class="cs">f"  <span class="cv">{md5}</span> -&gt; <span class="cv">{fn}</span>"</span>)
+
+<span class="cm"># 5. Check TorBox</span>
+tb_res = requests.<span class="cf">post</span>(<span class="cs">'https://api.torbox.app/v1/api/torrents/checkcached'</span>,
+    headers={<span class="cs">'Authorization'</span>: <span class="cs">f'Bearer <span class="cv">{TORBOX_KEY}</span>'</span>},
+    params={<span class="cs">'format'</span>: <span class="cs">'object'</span>, <span class="cs">'list_files'</span>: <span class="cs">'false'</span>},
+    json={<span class="cs">'hashes'</span>: hashes})
+
+<span class="cm"># 6. Result (TorBox keys response by infohash, match by name)</span>
+tb_data = tb_res.<span class="cf">json</span>().get(<span class="cs">'data'</span>, {})
+hits = [item.get(<span class="cs">'name'</span>) <span class="ck">for</span> item <span class="ck">in</span> tb_data.values() <span class="ck">if</span> isinstance(item, dict) <span class="ck">and</span> item.get(<span class="cs">'name'</span>) <span class="ck">in</span> filenames_set]
+<span class="ck">print</span>(<span class="cs">"\nCached Hits:"</span>, hits)</pre>
+          </div>
+        </div>
+      </section>
+
+      <div class="doc-footer">
+        <span>NullBeat API Integration</span>
+        <a href="/">← Back to App</a>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const sections = document.querySelectorAll('[id]');
+    const links = document.querySelectorAll('.sidebar-nav a');
+    const observer = new IntersectionObserver(entries => {
+      for (const e of entries) {
+        if (e.isIntersecting) {
+          links.forEach(l => l.classList.remove('active'));
+          const active = document.querySelector(`.sidebar-nav a[href="#${e.target.id}"]`);
+          if (active) active.classList.add('active');
+        }
+      }
+    }, { rootMargin: '-20% 0px -70% 0px' });
+    sections.forEach(s => observer.observe(s));
+
+    function switchCodeTab(e, tabId) {
+      document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+      document.getElementById('tab-' + tabId).classList.add('active');
+      e.target.classList.add('active');
+    }
+
+    function copyCode(btn) {
+      const container = btn.closest('.code-container');
+      const codeEl = container ? container.querySelector('code') : null;
+      const code = codeEl ? codeEl.innerText.trim() : btn.nextElementSibling.innerText.trim();
+      navigator.clipboard.writeText(code).then(() => {
+        const originalText = btn.innerText;
+        btn.innerText = 'Copied!';
+        btn.style.color = '#fff';
+        btn.style.borderColor = '#fff';
+        setTimeout(() => {
+          btn.innerText = originalText;
+          btn.style.color = '';
+          btn.style.borderColor = '';
+        }, 2000);
+      }).catch(err => {
+        console.error('Failed to copy text: ', err);
+      });
+    }
+  </script>
+</body>
+
+</html>

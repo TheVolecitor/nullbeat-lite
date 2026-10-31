@@ -1,0 +1,27 @@
+# Environment files (never commit secrets)
+.env
+.env.*
+!.env.example
+
+# SQLite Database, cache, and persistent local data
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Node dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS and Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Backups & temporary files
+*.bak
+*.testbak
