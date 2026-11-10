@@ -133,6 +133,8 @@ async function getTidalAlbum(albumId) {
         const trackArtistId = item.relationships?.artists?.data?.[0]?.id;
         const trackArtistName = artistsMap.get(trackArtistId) || mainArtistName;
         const tags = item.attributes?.mediaTags || [];
+        const audioModes = item.attributes?.audioModes || [];
+        const isAtmos = tags.some(tag => String(tag).toUpperCase() === 'DOLBY_ATMOS') || audioModes.includes('DOLBY_ATMOS');
         tracks.push({
           id: String(item.id),
           title: item.attributes?.title || 'Unknown',
@@ -141,7 +143,8 @@ async function getTidalAlbum(albumId) {
           duration: parseIsoDuration(item.attributes?.duration),
           isrc: item.attributes?.isrc || '',
           artworkURL: albumArtwork,
-          isHiRes: tags.some(tag => ['HIRES_LOSSLESS', 'FLAC_HIRES', 'HI_RES'].includes(String(tag).toUpperCase()))
+          isHiRes: tags.some(tag => ['HIRES_LOSSLESS', 'FLAC_HIRES', 'HI_RES'].includes(String(tag).toUpperCase())),
+          isAtmos: Boolean(isAtmos),
         });
       }
     }
@@ -333,6 +336,8 @@ async function getTidalV1Artist(artistId) {
       const rawTracks = tData.items || [];
       tracks = rawTracks.map(t => {
         const tags = t.mediaMetadata?.tags || [];
+        const audioModes = t.audioModes || [];
+        const isAtmos = tags.some(tag => String(tag).toUpperCase() === 'DOLBY_ATMOS') || audioModes.includes('DOLBY_ATMOS');
         const cover = t.album?.cover || t.cover;
         return {
           id: String(t.id),
@@ -343,6 +348,7 @@ async function getTidalV1Artist(artistId) {
           isrc: t.isrc || '',
           artworkURL: cover ? `https://resources.tidal.com/images/${cover.replace(/-/g, '/')}/640x640.jpg` : '',
           isHiRes: tags.some(tag => ['HIRES_LOSSLESS', 'FLAC_HIRES', 'HI_RES'].includes(String(tag).toUpperCase())),
+          isAtmos: Boolean(isAtmos),
         };
       });
     }

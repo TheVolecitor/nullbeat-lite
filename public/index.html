@@ -423,6 +423,86 @@
       color: var(--fg-muted);
     }
 
+    .atmos-toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border: 1px solid var(--border-bright);
+      padding: 0.85rem 1rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background-color: transparent;
+      user-select: none;
+    }
+
+    .atmos-toggle-row:hover {
+      border-color: var(--fg-muted);
+    }
+
+    .atmos-toggle-row.active {
+      border-color: var(--fg);
+      background-color: var(--surface-card);
+    }
+
+    .atmos-info {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .atmos-title {
+      font-family: 'Doto', sans-serif;
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: var(--fg);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .atmos-toggle-row.active .atmos-title {
+      color: var(--accent);
+    }
+
+    .atmos-desc {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--fg-muted);
+    }
+
+    .atmos-switch {
+      width: 38px;
+      height: 20px;
+      background-color: #222;
+      border: 1px solid var(--border-bright);
+      border-radius: 9999px;
+      position: relative;
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+    }
+
+    .atmos-switch-knob {
+      width: 14px;
+      height: 14px;
+      background-color: var(--fg-muted);
+      border-radius: 50%;
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .atmos-toggle-row.active .atmos-switch {
+      background-color: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .atmos-toggle-row.active .atmos-switch-knob {
+      background-color: #ffffff;
+      transform: translateX(18px);
+    }
+
     .q-row.active .q-title {
       color: var(--accent);
     }
@@ -872,6 +952,18 @@
       </div>
     </div>
 
+    <div class="group" style="margin-top: 0.75rem;">
+      <div class="atmos-toggle-row" id="atmosToggleRow" onclick="toggleAtmos()">
+        <div class="atmos-info">
+          <span class="atmos-title">◗◖ATMOS</span>
+          <span class="atmos-desc">Spatial Audio</span>
+        </div>
+        <div class="atmos-switch" id="atmosSwitch">
+          <div class="atmos-switch-knob"></div>
+        </div>
+      </div>
+    </div>
+
     <div id="errorMsg" class="error-msg" style="margin-bottom: 1rem;"></div>
     <div class="submit-row">
       <button class="submit" onclick="generate()">Install Addon</button>
@@ -937,6 +1029,13 @@
     <script>
       const WB = window.location.origin;
       let quality = 'MAX';
+      let atmos = false;
+
+      function toggleAtmos() {
+        atmos = !atmos;
+        const row = document.getElementById('atmosToggleRow');
+        if (row) row.classList.toggle('active', atmos);
+      }
 
       function onDebridChange(val) {
         const section = document.getElementById('torboxSection');
@@ -1027,7 +1126,8 @@
           }
         } catch (e) { }
 
-        const token = b64e(keyInput + '|||' + quality);
+        const tokenPayload = atmos ? (keyInput + '|||' + quality + '|||atmos') : (keyInput + '|||' + quality);
+        const token = b64e(tokenPayload);
         const url = `${WB}/${token}/manifest.json`;
         const spineUrl = `${WB}/${token}/nullbeat.8spine.js`;
 

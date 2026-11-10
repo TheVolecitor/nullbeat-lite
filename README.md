@@ -20,7 +20,7 @@ NullBeat Lite is a self-hostable music indexing service. Its a stripped down, li
 NullBeat Lite isolates public traffic from the administrative control plane across two separate HTTP ports:
 
 - **Public API (Port 3000):** Serves the BeatBoss addon configurator, manifest generator, Tidal search queries, and stream resolution routes. Uncached tracks fall back to the upstream Head Server.
-- **Control Plane (Port 3001):** Restricted administrative dashboard providing live SSE request tracing, 30-day persistent metrics, IP firewall rules (bans and rate limits), and configuration controls. Access to control plane endpoints is blocked on port 3000.
+- **Control Plane (Port 3001):** Restricted administrative dashboard providing live SSE request tracing, 30-day persistent metrics, IP firewall rules (bans and rate limits), and configuration controls.
 
 ## Prerequisites
 

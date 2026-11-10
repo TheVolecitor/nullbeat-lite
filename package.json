@@ -1,6 +1,6 @@
 {
   "name": "nullbeat-lite",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "NullBeat Lite — Lightweight, Self-Hostable Lossless Music Server",
   "main": "server.js",
   "scripts": {

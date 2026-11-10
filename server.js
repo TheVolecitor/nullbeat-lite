@@ -123,6 +123,7 @@ const FALLBACK_CHAINS = {
 const QUALITY_LABELS = {
   MAX: 'Max (Auto)', HIRES: 'Hi-Res FLAC',
   LOSSLESS: 'HiFi Lossless', HIGH: 'AAC 320 kbps', LOW: 'AAC 96 kbps',
+  ATMOS: 'Dolby Atmos',
 };
 
 const VALID_QUALITIES = Object.keys(FALLBACK_CHAINS);
@@ -134,6 +135,9 @@ const TIDAL_IMG = 'https://resources.tidal.com/images';
 function formatQualityOutput(q) {
   if (!q) return '16bit/44.1khz';
   const lq = String(q).toLowerCase();
+  if (lq.includes('atmos')) {
+    return 'Dolby Atmos';
+  }
   if (lq === 'hifi cd' || lq.includes('hifi') || lq.includes('cd') || lq === 'lossless' || lq.includes('16bit') || lq.includes('44.1')) {
     return '16bit/44.1khz';
   }
@@ -151,25 +155,31 @@ function formatQualityOutput(q) {
 
 function enrichStreamMeta(baseObj, qualityStr, formatStr, isrc = null) {
   const q = formatQualityOutput(qualityStr);
-  const isFlac = formatStr === 'flac' || q === '16bit/44.1khz' || q === 'Hi-Res';
-  const fmt = isFlac ? 'flac' : (formatStr || 'm4a');
+  const isAtmos = String(qualityStr).toUpperCase().includes('ATMOS') ||
+    (baseObj && (baseObj.audioMode === 'DOLBY_ATMOS' || (baseObj.title && baseObj.title.includes('ATMOS'))));
+  const isFlac = !isAtmos && (formatStr === 'flac' || q === '16bit/44.1khz' || q === 'Hi-Res');
+  const fmt = isAtmos ? 'm4a' : (isFlac ? 'flac' : (formatStr || 'm4a'));
+  const codec = isAtmos ? 'eac3_joc' : (isFlac ? 'flac' : 'aac');
 
   const meta = {
     ...baseObj,
     format: fmt,
-    quality: q,
-    codec: isFlac ? 'flac' : 'aac',
+    quality: isAtmos ? 'Dolby Atmos' : q,
+    codec: codec,
     container: isFlac ? 'flac' : 'fmp4',
   };
+
+  if (isAtmos) {
+    meta.audioMode = 'DOLBY_ATMOS';
+    meta.sampleRate = 48000;
+  } else if (q === '16bit/44.1khz') {
+    meta.sampleRate = 44100;
+    meta.bitDepth = 16;
+  }
 
   const finalIsrc = isrc || baseObj?.isrc;
   if (finalIsrc) {
     meta.isrc = String(finalIsrc);
-  }
-
-  if (q === '16bit/44.1khz') {
-    meta.sampleRate = 44100;
-    meta.bitDepth = 16;
   }
 
   return meta;
@@ -271,7 +281,17 @@ function mapTrack(t, base, enc) {
     hasHires = t.isHiRes;
   }
   const isHiRes = Boolean(hasHires);
-  if (!isHiRes && t.id) {
+  const hasAtmos = allTags.some(tag => String(tag).toUpperCase() === 'DOLBY_ATMOS') ||
+    audioModes.includes('DOLBY_ATMOS') ||
+    (typeof t.isAtmos === 'boolean' && t.isAtmos);
+  const isAtmos = hasAtmos;
+  const hasStereo = audioModes.includes('STEREO') ||
+    allTags.some(tag => ['LOSSLESS', 'HIRES_LOSSLESS', 'FLAC_HIRES', 'HI_RES'].includes(String(tag).toUpperCase())) ||
+    audioQuality.includes('LOSSLESS') ||
+    audioQuality.includes('HI_RES');
+  const isAtmosOnly = hasAtmos && !hasStereo;
+
+  if (!isHiRes && !hasAtmos && t.id) {
     torboxCache.markHiresUnavailable(String(t.id));
   }
 
@@ -284,6 +304,8 @@ function mapTrack(t, base, enc) {
     isrc: t.isrc || '',
     artworkURL: coverUrl,
     isHiRes: isHiRes,
+    isAtmos: Boolean(hasAtmos),
+    isAtmosOnly: Boolean(isAtmosOnly),
   };
 }
 
@@ -765,10 +787,26 @@ async function requireValidToken(req, res, next) {
   const { torboxApiKey, quality: baseQuality } = decodeToken(enc);
 
   if (!torboxApiKey) {
-    return res.status(401).json({ error: 'Torbox API Key missing in token' });
+    return res.status(401).json({
+      error: 'Torbox API Key missing in token',
+      notice: {
+        level: 'error',
+        title: 'API Key Missing',
+        message: 'TorBox API key is missing in your token. Please re-configure your addon.',
+        duration: 6
+      }
+    });
   }
   if (!UUID_RE.test(torboxApiKey)) {
-    return res.status(400).json({ error: 'Invalid Torbox API Key format. Must be a valid UUID.' });
+    return res.status(400).json({
+      error: 'Invalid Torbox API Key format. Must be a valid UUID.',
+      notice: {
+        level: 'error',
+        title: 'Invalid API Key',
+        message: 'Invalid TorBox API Key format. It must be a valid UUID.',
+        duration: 6
+      }
+    });
   }
 
   // ── API Key Ban Check ──────────────────────────────────────────────────────
@@ -776,7 +814,16 @@ async function requireValidToken(req, res, next) {
     const ban = bannedKeys.get(torboxApiKey);
     if (ban) {
       if (ban.tier === 'BAN') {
-        return res.status(403).json({ error: 'Access denied.' });
+        const banReason = ban.reason ? `: ${ban.reason}` : '';
+        return res.status(403).json({
+          error: 'Access denied.',
+          notice: {
+            level: 'error',
+            title: 'Account Suspended',
+            message: `Your API key was banned${banReason}`.slice(0, 120),
+            duration: 8
+          }
+        });
       }
       if (ban.tier === 'TROLL') {
         // Set flag so handlers can silently redirect
@@ -788,28 +835,69 @@ async function requireValidToken(req, res, next) {
 
   const allowed = await isKeyAllowed(torboxApiKey);
   if (!allowed && !req.trollBanned) {
-    return res.status(403).json({ error: 'Registrations closed.' });
+    return res.status(403).json({
+      error: 'Registrations closed.',
+      notice: {
+        level: 'error',
+        title: 'Access Restricted',
+        message: 'NullBeat server is private and not accepting unregistered keys.',
+        duration: 6
+      }
+    });
   }
 
+  // ── BitChord /stream User-Agent Override ───────────────────────────────────
+  // If requester of /stream has User-Agent BitChord/vx.x (e.g. BitChord/v1.9),
+  // ignore any supplied ?quality= parameter and serve solely based on manifest :enc
+  const userAgent = req.headers['user-agent'] || req.get('user-agent') || '';
+  const isBitChord = /\bBitChord\/(?:v)?\d+(\.\d+)*/i.test(userAgent);
+  const isStreamRoute = req.path && req.path.includes('/stream');
+
   // Dynamic quality override from request parameters or settings payload
-  let dynamicQuality = req.query?.quality || req.query?.q;
-  if (!dynamicQuality && req.query?.settings) {
+  let dynamicQuality = (isBitChord && isStreamRoute) ? null : (req.query?.quality || req.query?.q);
+  if (!dynamicQuality && (!isBitChord || !isStreamRoute) && req.query?.settings) {
     try {
       const parsed = typeof req.query.settings === 'string' ? JSON.parse(req.query.settings) : req.query.settings;
       if (parsed && parsed.quality) dynamicQuality = parsed.quality;
     } catch (_) { }
   }
-  if (!dynamicQuality && req.headers['x-quality']) {
+  if (!dynamicQuality && (!isBitChord || !isStreamRoute) && req.headers['x-quality']) {
     dynamicQuality = req.headers['x-quality'];
   }
 
   const finalQuality = dynamicQuality ? normalizeQuality(dynamicQuality, baseQuality) : baseQuality;
+
+  // Default atmos setting comes from the token (if installed with atmos enabled)
+  const tokenParts = b64Decode(enc).split(SEP);
+  let atmos = tokenParts[2] === 'atmos' || tokenParts[2] === 'true' || tokenParts[2] === '1';
+
+  // Dynamic overrides from header, settings JSON, or query parameters:
+  if (req.headers['x-atmos']) {
+    atmos = req.headers['x-atmos'] === 'true' || req.headers['x-atmos'] === '1';
+  }
+  if (req.query?.settings) {
+    try {
+      const parsed = typeof req.query.settings === 'string' ? JSON.parse(req.query.settings) : req.query.settings;
+      if (parsed && typeof parsed.atmos !== 'undefined') {
+        atmos = parsed.atmos === true || parsed.atmos === 'true' || parsed.atmos === '1';
+      }
+    } catch (_) { }
+  }
+  if (typeof req.query?.atmos !== 'undefined') {
+    atmos = req.query.atmos === 'true' || req.query.atmos === '1';
+  }
+  const isWebReq = req.query?.web === 'true' || req.query?.web === '1' || req.query?.resolve_cdn === 'true';
+  if (isWebReq) {
+    atmos = false;
+  }
 
   req.torboxApiKey = torboxApiKey;
   req.quality = finalQuality;
   req.baseQuality = baseQuality;
   req.enc = enc;
   req.workerBase = `${req.protocol}://${req.get('host')}`;
+  req.isBitChord = isBitChord;
+  req.atmos = atmos;
   next();
 }
 
@@ -832,12 +920,12 @@ function serveManifest(req, res) {
   res.json({
     id: `com.nullbeat.addon.${enc.slice(0, 16)}`,
     name: manifestName,
-    version: '1.0.0',
+    version: '1.0.2',
     description: descPrefix + 'Private music ripper and Torbox cacher for BeatBoss.',
     author: 'NullBeat',
     icon: manifestIcon,
     types: ['track', 'album', 'artist', 'playlist'],
-    resources: ['search', 'stream', 'settings', 'catalog', 'isrc'],
+    resources: ['search', 'stream', 'settings', 'catalog', 'isrc', 'notifications'],
     settings: [
       {
         key: 'quality',
@@ -852,6 +940,12 @@ function serveManifest(req, res) {
           { value: 'lossless', label: 'CD Quality (16-bit/44.1kHz FLAC)' },
           { value: 'high', label: 'AAC (320kbps)' }
         ]
+      },
+      {
+        key: 'atmos',
+        type: 'toggle',
+        label: '◗◖ATMOS',
+        default: Boolean(req.atmos)
       }
     ],
     catalogs: [
@@ -1086,7 +1180,7 @@ async function catalogHandler(req, res) {
  * SWR background refresh — re-fetches Tidal and updates search_cache.
  * Called via setImmediate; never blocks a client response.
  */
-async function backgroundSearchRefresh(q, limitParam, typeParam, workerBase, enc, cacheKey, torboxApiKey, quality) {
+async function backgroundSearchRefresh(q, limitParam, typeParam, workerBase, enc, cacheKey, torboxApiKey, quality, atmos = false) {
   console.log(`[SWR] Background refresh started for "${q}"`);
   let tracks = [], albums = [], artists = [];
   let openApiSuccess = false;
@@ -1117,8 +1211,14 @@ async function backgroundSearchRefresh(q, limitParam, typeParam, workerBase, enc
         const albumObj = albumRel ? includedMap.get(`albums:${albumRel.id}`) : null;
         const cover = getArtworkUrl(albumObj?.relationships?.coverArt?.data?.[0]);
         const mediaTags = t.attributes?.mediaTags || [];
+        const audioModes = t.attributes?.audioModes || [];
+        const hasAtmos = mediaTags.some(tag => String(tag).toUpperCase() === 'DOLBY_ATMOS') || audioModes.includes('DOLBY_ATMOS');
+        const hasStereo = audioModes.includes('STEREO') ||
+          mediaTags.some(tag => ['LOSSLESS', 'HIRES_LOSSLESS', 'FLAC_HIRES', 'HI_RES'].includes(String(tag).toUpperCase()));
+        const isAtmos = hasAtmos;
+        const isAtmosOnly = hasAtmos && !hasStereo;
         const hasHires = mediaTags.some(tag => ['HIRES_LOSSLESS', 'FLAC_HIRES', 'HI_RES'].includes(String(tag).toUpperCase()));
-        if (!hasHires && t.id) {
+        if (!hasHires && !hasAtmos && t.id) {
           torboxCache.markHiresUnavailable(String(t.id));
         }
         return {
@@ -1130,8 +1230,18 @@ async function backgroundSearchRefresh(q, limitParam, typeParam, workerBase, enc
           isrc: t.attributes?.isrc || '',
           artworkURL: cover,
           isHiRes: hasHires,
+          isAtmos: Boolean(hasAtmos),
+          isAtmosOnly: Boolean(isAtmosOnly),
         };
-      }).filter(Boolean).slice(0, limitParam);
+      }).filter(Boolean);
+
+      if (!atmos) {
+        tracks = tracks.filter(t => !t.isAtmosOnly).slice(0, limitParam);
+      } else {
+        const atmosTracks = tracks.filter(t => t.isAtmos);
+        const nonAtmosTracks = tracks.filter(t => !t.isAtmos);
+        tracks = [...atmosTracks, ...nonAtmosTracks].slice(0, limitParam);
+      }
     }
 
     if (!typeParam || typeParam === 'album') {
@@ -1140,8 +1250,32 @@ async function backgroundSearchRefresh(q, limitParam, typeParam, workerBase, enc
         if (!a) return null;
         const artistNames = (a.relationships?.artists?.data || []).map(ar => includedMap.get(`artists:${ar.id}`)?.attributes?.name).filter(Boolean);
         const cover = getArtworkUrl(a.relationships?.coverArt?.data?.[0]);
-        return { id: String(a.id), title: a.attributes?.title || 'Unknown', artist: artistNames.join(', ') || 'Unknown', artworkURL: cover, year: (a.attributes?.releaseDate || '').slice(0, 4) };
-      }).filter(Boolean).slice(0, limitParam);
+        const aTags = a.attributes?.mediaTags || [];
+        const aModes = a.attributes?.audioModes || [];
+        const isAtmos = aTags.some(tag => String(tag).toUpperCase() === 'DOLBY_ATMOS') ||
+          aModes.includes('DOLBY_ATMOS') ||
+          /dolby\s*atmos/i.test(a.attributes?.title || '');
+        const hasStereo = aModes.includes('STEREO') ||
+          aTags.some(tag => ['LOSSLESS', 'HIRES_LOSSLESS', 'FLAC_HIRES', 'HI_RES'].includes(String(tag).toUpperCase()));
+        const isAtmosOnly = isAtmos && !hasStereo;
+        return {
+          id: String(a.id),
+          title: a.attributes?.title || 'Unknown',
+          artist: artistNames.join(', ') || 'Unknown',
+          artworkURL: cover,
+          year: (a.attributes?.releaseDate || '').slice(0, 4),
+          isAtmos: Boolean(isAtmos),
+          isAtmosOnly: Boolean(isAtmosOnly),
+        };
+      }).filter(Boolean);
+
+      if (!atmos) {
+        albums = albums.filter(a => !a.isAtmosOnly).slice(0, limitParam);
+      } else {
+        const atmosAlbums = albums.filter(a => a.isAtmos);
+        const nonAtmosAlbums = albums.filter(a => !a.isAtmos);
+        albums = [...atmosAlbums, ...nonAtmosAlbums].slice(0, limitParam);
+      }
     }
 
     if (!typeParam || typeParam === 'artist') {
@@ -1169,7 +1303,40 @@ async function backgroundSearchRefresh(q, limitParam, typeParam, workerBase, enc
       ]);
       if (trackRes || albumRes || artistRes) {
         tracks = extractItems(trackRes, ['data', 'items'], ['data', 'tracks', 'items'], ['items']).map(t => mapTrack(t, workerBase, enc)).filter(Boolean);
-        albums = extractItems(albumRes, ['data', 'albums', 'items'], ['data', 'items'], ['items']).map(a => ({ id: String(a.id || ''), title: a.title || a.name || '', artist: a.artist?.name || a.artists?.[0]?.name || '', artworkURL: tidalCover(a.cover), year: a.releaseDate?.slice(0, 4) || '' })).filter(a => a.id);
+        if (!atmos) {
+          tracks = tracks.filter(t => !t.isAtmosOnly).slice(0, limitParam);
+        } else {
+          const atmosTracks = tracks.filter(t => t.isAtmos);
+          const nonAtmosTracks = tracks.filter(t => !t.isAtmos);
+          tracks = [...atmosTracks, ...nonAtmosTracks].slice(0, limitParam);
+        }
+
+        albums = extractItems(albumRes, ['data', 'albums', 'items'], ['data', 'items'], ['items']).map(a => {
+          const aTags = a.mediaMetadata?.tags || a.tags || [];
+          const aModes = a.audioModes || [];
+          const isAtmos = aTags.some(tag => String(tag).toUpperCase() === 'DOLBY_ATMOS') ||
+            aModes.includes('DOLBY_ATMOS') ||
+            /dolby\s*atmos/i.test(a.title || a.name || '');
+          const hasStereo = aModes.includes('STEREO') ||
+            aTags.some(tag => ['LOSSLESS', 'HIRES_LOSSLESS', 'FLAC_HIRES', 'HI_RES'].includes(String(tag).toUpperCase()));
+          const isAtmosOnly = isAtmos && !hasStereo;
+          return {
+            id: String(a.id || ''), title: a.title || a.name || '',
+            artist: a.artist?.name || a.artists?.[0]?.name || '',
+            artworkURL: tidalCover(a.cover), year: a.releaseDate?.slice(0, 4) || '',
+            isAtmos: Boolean(isAtmos),
+            isAtmosOnly: Boolean(isAtmosOnly),
+          };
+        }).filter(a => a.id);
+
+        if (!atmos) {
+          albums = albums.filter(a => !a.isAtmosOnly).slice(0, limitParam);
+        } else {
+          const atmosAlbums = albums.filter(a => a.isAtmos);
+          const nonAtmosAlbums = albums.filter(a => !a.isAtmos);
+          albums = [...atmosAlbums, ...nonAtmosAlbums].slice(0, limitParam);
+        }
+
         artists = extractItems(artistRes, ['data', 'artists', 'items'], ['data', 'items'], ['items']).map(a => ({ id: String(a.id || ''), name: a.name || '', artworkURL: a.picture ? `https://resources.tidal.com/images/${a.picture.replace(/-/g, '/')}/750x750.jpg` : '' })).filter(a => a.id);
       }
     } catch (e) {
@@ -1177,6 +1344,7 @@ async function backgroundSearchRefresh(q, limitParam, typeParam, workerBase, enc
     }
   }
 
+  try { searchCache.saveTracksMeta(tracks); } catch (_) {}
   if (tracks.length === 0 && albums.length === 0 && artists.length === 0) {
     console.warn(`[SWR] No results for "${q}", skipping cache update`);
     return;
@@ -1184,7 +1352,7 @@ async function backgroundSearchRefresh(q, limitParam, typeParam, workerBase, enc
 
   // Background TorBox badge injection (optional — don't fail the cache update if this errors)
   try {
-    if (torboxApiKey) await injectCacheInfo(tracks, torboxApiKey, quality);
+    if (torboxApiKey) await injectCacheInfo(tracks, torboxApiKey, quality, Boolean(atmos));
   } catch (e) { /* non-fatal */ }
 
   const rawResult = {
@@ -1213,7 +1381,7 @@ async function searchHandler(req, res) {
 
   if (!q) { res.set('Cache-Control', 'public, max-age=86400'); return res.json({ tracks: [], albums: [], artists: [] }); }
 
-  const cacheKey = searchCache.buildKey(q, typeParam, limitParam);
+  const cacheKey = searchCache.buildKey(q, typeParam, limitParam, req.atmos);
   const cachedWithMeta = searchCache.getWithMeta(cacheKey);
 
   if (cachedWithMeta) {
@@ -1221,7 +1389,7 @@ async function searchHandler(req, res) {
     // Stamp badges from local DB (no TorBox HTTP call)
     const cachedTracks = data.tracks ? [...data.tracks] : [];
     if (torboxApiKey && cachedTracks.length > 0) {
-      lookupAndInjectBadges(cachedTracks, quality);
+      lookupAndInjectBadges(cachedTracks, quality, Boolean(req.atmos));
     }
     res.set('Cache-Control', METADATA_CACHE_CONTROL);
     res.json({ tracks: cachedTracks, albums: data.albums || [], artists: data.artists || [] });
@@ -1230,7 +1398,7 @@ async function searchHandler(req, res) {
     const age = Date.now() - createdAt;
     if (age > STALE_THRESHOLD_MS) {
       setImmediate(() => {
-        backgroundSearchRefresh(q, limitParam, typeParam, workerBase, enc, cacheKey, torboxApiKey, quality)
+        backgroundSearchRefresh(q, limitParam, typeParam, workerBase, enc, cacheKey, torboxApiKey, quality, req.atmos)
           .catch(e => console.warn(`[SWR] Background refresh failed for "${q}": ${e.message}`));
       });
     }
@@ -1270,8 +1438,14 @@ async function searchHandler(req, res) {
           const albumObj = albumRel ? includedMap.get(`albums:${albumRel.id}`) : null;
           const cover = getArtworkUrl(albumObj?.relationships?.coverArt?.data?.[0]);
           const mediaTags = t.attributes?.mediaTags || [];
+          const audioModes = t.attributes?.audioModes || [];
+          const hasAtmos = mediaTags.some(tag => String(tag).toUpperCase() === 'DOLBY_ATMOS') || audioModes.includes('DOLBY_ATMOS');
+          const hasStereo = audioModes.includes('STEREO') ||
+            mediaTags.some(tag => ['LOSSLESS', 'HIRES_LOSSLESS', 'FLAC_HIRES', 'HI_RES'].includes(String(tag).toUpperCase()));
+          const isAtmos = hasAtmos;
+          const isAtmosOnly = hasAtmos && !hasStereo;
           const hasHires = mediaTags.some(tag => ['HIRES_LOSSLESS', 'FLAC_HIRES', 'HI_RES'].includes(String(tag).toUpperCase()));
-          if (!hasHires && t.id) {
+          if (!hasHires && !hasAtmos && t.id) {
             torboxCache.markHiresUnavailable(String(t.id));
           }
           return {
@@ -1283,8 +1457,18 @@ async function searchHandler(req, res) {
             isrc: t.attributes?.isrc || '',
             artworkURL: cover,
             isHiRes: hasHires,
+            isAtmos: Boolean(hasAtmos),
+            isAtmosOnly: Boolean(isAtmosOnly),
           };
-        }).filter(Boolean).slice(0, limitParam);
+        }).filter(Boolean);
+
+        if (!req.atmos) {
+          tracks = tracks.filter(t => !t.isAtmosOnly).slice(0, limitParam);
+        } else {
+          const atmosTracks = tracks.filter(t => t.isAtmos);
+          const nonAtmosTracks = tracks.filter(t => !t.isAtmos);
+          tracks = [...atmosTracks, ...nonAtmosTracks].slice(0, limitParam);
+        }
       }
 
       if (!typeParam || typeParam === 'album') {
@@ -1294,14 +1478,32 @@ async function searchHandler(req, res) {
           const artistNames = (a.relationships?.artists?.data || [])
             .map(ar => includedMap.get(`artists:${ar.id}`)?.attributes?.name).filter(Boolean);
           const cover = getArtworkUrl(a.relationships?.coverArt?.data?.[0]);
+          const aTags = a.attributes?.mediaTags || [];
+          const aModes = a.attributes?.audioModes || [];
+          const isAtmos = aTags.some(tag => String(tag).toUpperCase() === 'DOLBY_ATMOS') ||
+            aModes.includes('DOLBY_ATMOS') ||
+            /dolby\s*atmos/i.test(a.attributes?.title || '');
+          const hasStereo = aModes.includes('STEREO') ||
+            aTags.some(tag => ['LOSSLESS', 'HIRES_LOSSLESS', 'FLAC_HIRES', 'HI_RES'].includes(String(tag).toUpperCase()));
+          const isAtmosOnly = isAtmos && !hasStereo;
           return {
             id: String(a.id),
             title: a.attributes?.title || 'Unknown',
             artist: artistNames.join(', ') || 'Unknown',
             artworkURL: cover,
             year: (a.attributes?.releaseDate || '').slice(0, 4),
+            isAtmos: Boolean(isAtmos),
+            isAtmosOnly: Boolean(isAtmosOnly),
           };
-        }).filter(Boolean).slice(0, limitParam);
+        }).filter(Boolean);
+
+        if (!req.atmos) {
+          albums = albums.filter(a => !a.isAtmosOnly).slice(0, limitParam);
+        } else {
+          const atmosAlbums = albums.filter(a => a.isAtmos);
+          const nonAtmosAlbums = albums.filter(a => !a.isAtmos);
+          albums = [...atmosAlbums, ...nonAtmosAlbums].slice(0, limitParam);
+        }
       }
 
       if (!typeParam || typeParam === 'artist') {
@@ -1344,13 +1546,40 @@ async function searchHandler(req, res) {
         if (trackRes || albumRes || artistRes) {
           tracks = extractItems(trackRes, ['data', 'items'], ['data', 'tracks', 'items'], ['items'])
             .map(t => mapTrack(t, workerBase, enc)).filter(Boolean);
+          if (!req.atmos) {
+            tracks = tracks.filter(t => !t.isAtmosOnly).slice(0, limitParam);
+          } else {
+            const atmosTracks = tracks.filter(t => t.isAtmos);
+            const nonAtmosTracks = tracks.filter(t => !t.isAtmos);
+            tracks = [...atmosTracks, ...nonAtmosTracks].slice(0, limitParam);
+          }
 
           albums = extractItems(albumRes, ['data', 'albums', 'items'], ['data', 'items'], ['albums', 'items'], ['items'])
-            .map(a => ({
-              id: String(a.id || ''), title: a.title || a.name || '',
-              artist: a.artist?.name || a.artists?.[0]?.name || '',
-              artworkURL: tidalCover(a.cover), year: a.releaseDate?.slice(0, 4) || '',
-            })).filter(a => a.id);
+            .map(a => {
+              const aTags = a.mediaMetadata?.tags || a.tags || [];
+              const aModes = a.audioModes || [];
+              const isAtmos = aTags.some(tag => String(tag).toUpperCase() === 'DOLBY_ATMOS') ||
+                aModes.includes('DOLBY_ATMOS') ||
+                /dolby\s*atmos/i.test(a.title || a.name || '');
+              const hasStereo = aModes.includes('STEREO') ||
+                aTags.some(tag => ['LOSSLESS', 'HIRES_LOSSLESS', 'FLAC_HIRES', 'HI_RES'].includes(String(tag).toUpperCase()));
+              const isAtmosOnly = isAtmos && !hasStereo;
+              return {
+                id: String(a.id || ''), title: a.title || a.name || '',
+                artist: a.artist?.name || a.artists?.[0]?.name || '',
+                artworkURL: tidalCover(a.cover), year: a.releaseDate?.slice(0, 4) || '',
+                isAtmos: Boolean(isAtmos),
+                isAtmosOnly: Boolean(isAtmosOnly),
+              };
+            }).filter(a => a.id);
+
+          if (!req.atmos) {
+            albums = albums.filter(a => !a.isAtmosOnly).slice(0, limitParam);
+          } else {
+            const atmosAlbums = albums.filter(a => a.isAtmos);
+            const nonAtmosAlbums = albums.filter(a => !a.isAtmos);
+            albums = [...atmosAlbums, ...nonAtmosAlbums].slice(0, limitParam);
+          }
 
           artists = extractItems(artistRes, ['data', 'artists', 'items'], ['data', 'items'], ['artists', 'items'], ['items'])
             .map(a => ({
@@ -1367,7 +1596,7 @@ async function searchHandler(req, res) {
 
     // Live TorBox check + write to torbox_cache DB
     if (limitParam !== 1 && torboxApiKey) {
-      await injectCacheInfo(tracks, torboxApiKey, quality);
+      await injectCacheInfo(tracks, torboxApiKey, quality, Boolean(req.atmos));
     }
 
     // Store raw result (without badges) in search_cache
@@ -1398,7 +1627,7 @@ async function albumHandler(req, res) {
   const cached = searchCache.get(cacheKey);
   if (cached) {
     if (torboxApiKey) {
-      lookupAndInjectBadges(cached.tracks || [], quality);
+      lookupAndInjectBadges(cached.tracks || [], quality, Boolean(req.atmos));
     }
     cached.id = String(cached.id || albumId);
     res.set('Cache-Control', METADATA_CACHE_CONTROL);
@@ -1442,7 +1671,7 @@ async function albumHandler(req, res) {
     const tracks = (albumData.tracks || []).map(t => mapTrack(t, workerBase, enc)).filter(Boolean);
 
     if (torboxApiKey) {
-      await injectCacheInfo(tracks, torboxApiKey, quality);
+      await injectCacheInfo(tracks, torboxApiKey, quality, Boolean(req.atmos));
     }
 
     const payload = {
@@ -1473,14 +1702,15 @@ async function albumHandler(req, res) {
 
 async function artistHandler(req, res) {
   const { enc, workerBase, torboxApiKey, quality } = req;
+  const isWeb = req.query.web === 'true' || req.query.web === '1' || req.headers['x-nullbeat-web'] === 'true' || req.headers['x-nullbeat-web'] === '1';
   // ★ Troll Ban: always return Rick Astley
   const artistId = req.trollBanned ? TROLL_ARTIST_ID : req.params.artistId;
 
-  const cacheKey = `artist:${artistId}`;
+  const cacheKey = `artist:${artistId}${(req.atmos && !isWeb) ? ':atmos' : ''}`;
   const cached = searchCache.get(cacheKey);
   if (cached) {
     if (torboxApiKey) {
-      lookupAndInjectBadges(cached.tracks || [], quality);
+      lookupAndInjectBadges(cached.tracks || [], quality, Boolean(req.atmos && !isWeb));
     }
     cached.id = String(cached.id || artistId);
     res.set('Cache-Control', METADATA_CACHE_CONTROL);
@@ -1526,7 +1756,7 @@ async function artistHandler(req, res) {
     const artworkURL = result?.artworkURL || '';
 
     if (torboxApiKey) {
-      await injectCacheInfo(tracks, torboxApiKey, quality);
+      await injectCacheInfo(tracks, torboxApiKey, quality, Boolean(req.atmos && !isWeb));
     }
 
     const finalArtistId = String(result?.id || artistId);
@@ -2070,6 +2300,46 @@ app.get('/api/generate-invite', async (req, res) => {
 
 // Manifest, Catalog, Search, Album, Artist, Playlist, ISRC Lookup
 app.get('/:enc/manifest.json', requireValidToken, serveManifest);
+app.get(['/manifest.json', '/manifest'], (req, res) => {
+  res.set('Cache-Control', 'public, max-age=86400');
+  res.json({
+    id: 'com.nullbeat.addon',
+    name: 'NullBeat Lite',
+    version: '1.0.2',
+    description: 'Private music ripper and Torbox cacher for BeatBoss.',
+    author: 'NullBeat',
+    icon: `${req.protocol}://${req.get('host')}/favicon.png`,
+    types: ['track', 'album', 'artist', 'playlist'],
+    resources: ['search', 'stream', 'settings', 'catalog', 'isrc', 'notifications'],
+    settings: [
+      {
+        key: 'quality',
+        type: 'select',
+        label: 'Audio quality',
+        help: 'Configure stream quality (MAX recommended for best cache availability)',
+        default: 'max',
+        perNetwork: true,
+        options: [
+          { value: 'max', label: 'MAX (Best Available / Auto)' },
+          { value: 'hires', label: 'HiRes Lossless (Up to 24-bit/192kHz FLAC)' },
+          { value: 'lossless', label: 'CD Quality (16-bit/44.1kHz FLAC)' },
+          { value: 'high', label: 'AAC (320kbps)' }
+        ]
+      },
+      {
+        key: 'atmos',
+        type: 'toggle',
+        label: '◗◖ATMOS',
+        default: false
+      }
+    ],
+    catalogs: [
+      { type: 'track', id: 'nullbeat_top_tracks', name: 'NullBeat Top Tracks' },
+      { type: 'album', id: 'nullbeat_top_albums', name: 'NullBeat Top Albums' },
+      { type: 'playlist', id: 'nullbeat_top_playlists', name: 'NullBeat Playlists' },
+    ],
+  });
+});
 app.get([
   '/:enc/catalog',
   '/:enc/catalog/:rowId',
@@ -2146,7 +2416,7 @@ function _mapQuality(q) {
 return {
   id:      'nullbeat',
   name:    'NullBeat',
-  version: '1.0.0',
+  version: '1.0.2',
   labels:  ['LOSSLESS', 'HI-RES', 'DEBRID'],
 
   searchTracks: async (query, limit = 10) => {
@@ -2224,6 +2494,12 @@ function resolvePublicWebseedUrl() {
 
 // Stream → TorBox direct bypass (if cached) or forward to Head Server
 app.get(['/:enc/stream/:type/:trackId', '/:enc/stream/:trackId'], requireValidToken, async (req, res) => {
+  const userAgent = req.headers['user-agent'] || req.get('user-agent') || '';
+  const isBitChord = req.isBitChord || /\bBitChord\/(?:v)?\d+(\.\d+)*/i.test(userAgent);
+  if (isBitChord && req.baseQuality) {
+    req.quality = req.baseQuality;
+    console.log(`[Stream] BitChord user-agent (${userAgent}) detected — serving solely based on manifest :enc (${req.baseQuality})`);
+  }
   const { enc, torboxApiKey, quality } = req;
   const rawTrackId = req.params.trackId || req.params.type;
   const cleanTrackId = (rawTrackId || '').replace(/^track:/, '').replace(/\.json$/, '');
@@ -2307,14 +2583,39 @@ app.get(['/:enc/stream/:type/:trackId', '/:enc/stream/:trackId'], requireValidTo
     || req.ip
     || '';
   if (clientIp && !checkAbuse(clientIp, trackId)) {
-    return res.status(403).json({ error: 'Anti-Abuse limit exceeded.' });
+    return res.status(429).json({
+      error: 'Anti-Abuse limit exceeded.',
+      notice: {
+        level: 'warning',
+        title: 'Rate Limited',
+        message: 'Too many rapid requests for this track. Please wait a minute.',
+        duration: 6
+      }
+    });
   }
 
   const isWeb = req.query.web === 'true' || req.query.web === '1' || req.query.resolve_cdn === 'true';
 
-  const chain = FALLBACK_CHAINS[quality] || FALLBACK_CHAINS[DEFAULT_QUALITY];
+  const trackMetaHit = searchCache.findTrackInCache(trackId);
+  const trackIsrc = trackMetaHit?.isrc || null;
+
+  // Verify whether track actually supports Dolby Atmos on Tidal
+  let trackSupportsAtmos = true;
+  if (trackMetaHit && typeof trackMetaHit.isAtmos === 'boolean') {
+    trackSupportsAtmos = trackMetaHit.isAtmos;
+  } else if (typeof torboxCache.isAtmosUnavailable === 'function' && torboxCache.isAtmosUnavailable(trackId)) {
+    trackSupportsAtmos = false;
+  }
+
+  const isAtmosStream = Boolean(req.atmos) && trackSupportsAtmos && !isWeb;
+  if (req.atmos && !trackSupportsAtmos) {
+    console.log(`[Stream] ⚡ Track ${trackId} has no Dolby Atmos on Tidal -> directly serving standard quality (${quality})`);
+  }
+
+  const chain = isAtmosStream ? ['ATMOS'] : (FALLBACK_CHAINS[quality] || FALLBACK_CHAINS[DEFAULT_QUALITY]);
   const publicWsUrl = resolvePublicWebseedUrl();
   const qParams = new URLSearchParams();
+  qParams.set('atmos', isAtmosStream ? 'true' : 'false');
   if (publicWsUrl) qParams.set('webseed', publicWsUrl);
   if (req.query.torbox_download === 'true' || req.query.torbox_download === '1') qParams.set('torbox_download', 'true');
   if (req.query.download === 'true' || req.query.download === '1') qParams.set('download', 'true');
@@ -2322,9 +2623,6 @@ app.get(['/:enc/stream/:type/:trackId', '/:enc/stream/:trackId'], requireValidTo
   if (isWeb) qParams.set('web', 'true');
   if (clientIp) qParams.set('user_ip', clientIp);
   const queryParam = qParams.toString() ? `?${qParams.toString()}` : '';
-
-  const trackMetaHit = searchCache.findTrackInCache(trackId);
-  const trackIsrc = trackMetaHit?.isrc || null;
 
   // Instant Playback bypass if torrent_id is already provided directly in track ID
   if (directTorrentId) {
@@ -2345,6 +2643,9 @@ app.get(['/:enc/stream/:type/:trackId', '/:enc/stream/:trackId'], requireValidTo
     if (cachedHit) {
       fmt = cachedHit.filename?.endsWith('.flac') ? 'flac' : (cachedHit.filename?.endsWith('.m4a') ? 'm4a' : 'flac');
       q = formatQualityOutput(cachedHit.quality);
+    } else if (isAtmosStream) {
+      fmt = 'm4a';
+      q = 'Dolby Atmos';
     } else if (quality === 'HIGH') {
       fmt = 'm4a';
       q = '320kbps';
@@ -2392,7 +2693,7 @@ app.get(['/:enc/stream/:type/:trackId', '/:enc/stream/:trackId'], requireValidTo
           const db = require('./db').getDb();
           db.prepare('DELETE FROM torbox_cache WHERE track_id = ? AND quality = ?').run(String(trackId), cacheHit.quality);
           console.log(`[Stream] Evicted stale torbox_cache entry for track ${trackId} (${cacheHit.quality})`);
-        } catch (_) {}
+        } catch (_) { }
       }
     }
   }
@@ -2402,7 +2703,7 @@ app.get(['/:enc/stream/:type/:trackId', '/:enc/stream/:trackId'], requireValidTo
     try {
       const meta = searchCache.findTrackInCache(cleanTrackId) || trackMeta?.get?.(cleanTrackId);
       if (meta?.title && meta?.artist) {
-        const liveHit = await checkSingleTrackCache(cleanTrackId, meta.title, meta.artist, torboxApiKey, req.quality);
+        const liveHit = await checkSingleTrackCache(cleanTrackId, meta.title, meta.artist, torboxApiKey, req.quality, isAtmosStream);
         if (liveHit && liveHit.infohash && liveHit.infohash !== 'UNAVAILABLE') {
           console.log(`[Stream] ⚡ On-demand live cache HIT for track ${cleanTrackId} (${liveHit.quality})`);
           const result = await createTorboxFromHash(liveHit.infohash, liveHit.filename, torboxApiKey, liveHit.quality);
@@ -2433,13 +2734,19 @@ app.get(['/:enc/stream/:type/:trackId', '/:enc/stream/:trackId'], requireValidTo
   stats.increment('streams_forwarded');
   const headServer = getHeadServerUrl();
   if (!headServer) {
-    return res.status(503).json({ error: 'Stream backend unavailable. Head server URL is not configured.' });
+    return res.status(503).json({
+      error: 'Stream backend unavailable. Head server URL is not configured.',
+      notice: {
+        level: 'error',
+        title: 'Backend Unavailable',
+        message: 'Stream backend is not configured. Please contact the administrator.',
+        duration: 6
+      }
+    });
   }
-  const streamToken = req.quality !== req.baseQuality
-    ? b64Encode(`${torboxApiKey}${SEP}${req.quality}`)
-    : enc;
+  const streamToken = b64Encode(`${torboxApiKey}${SEP}${req.quality}${isAtmosStream ? `${SEP}atmos` : ''}`);
   let headUrl = `${headServer}/${streamToken}/stream/${cleanTrackId}${queryParam}`;
-  console.log(`[Stream] → Head Server (${headServer}) for track ${cleanTrackId} (Quality: ${req.quality})`);
+  console.log(`[Stream] → Head Server (${headServer}) for track ${cleanTrackId} (Quality: ${req.quality}, Atmos: ${isAtmosStream})`);
 
   try {
     let headRes = await fetch(headUrl, {
@@ -2482,13 +2789,15 @@ app.get(['/:enc/stream/:type/:trackId', '/:enc/stream/:trackId'], requireValidTo
                 }
               }
             }
-          } catch (_) {}
+          } catch (_) { }
         }
 
-        if (data.url && data.infohash) {
+        if (data.url && (data.infohash || data.quality)) {
           try {
-            const qLabel = data.quality || QUALITY_LABELS[quality] || quality;
-            const infohash = data.infohash;
+            let qLabel = data.quality || QUALITY_LABELS[quality] || quality;
+            if (typeof qLabel === 'string' && qLabel.toLowerCase().includes('atmos')) qLabel = 'DOLBY ATMOS';
+            else if (typeof qLabel === 'string' && (qLabel.includes('320') || qLabel === 'HIGH')) qLabel = '320kbps AAC';
+            const infohash = data.infohash || '';
             const fn = data.filename || '';
             const sizeMb = data.sizeMb || 0;
             torboxCache.write(cleanTrackId, qLabel, sizeMb, infohash, fn);
@@ -2499,13 +2808,26 @@ app.get(['/:enc/stream/:type/:trackId', '/:enc/stream/:trackId'], requireValidTo
         }
 
         try {
-          const qLabel = data.quality || QUALITY_LABELS[quality] || quality;
+          let qLabel = data.quality || QUALITY_LABELS[quality] || quality;
+          if (typeof qLabel === 'string' && qLabel.toLowerCase().includes('atmos')) qLabel = 'DOLBY ATMOS';
+          else if (typeof qLabel === 'string' && (qLabel.includes('320') || qLabel === 'HIGH')) qLabel = '320kbps AAC';
+
+          if (isAtmosStream && qLabel !== 'DOLBY ATMOS') {
+            torboxCache.write(cleanTrackId, 'DOLBY ATMOS', 0, 'UNAVAILABLE', '');
+            if (typeof torboxCache.markAtmosUnavailable === 'function') {
+              torboxCache.markAtmosUnavailable(cleanTrackId);
+            }
+            if (trackMeta?.markAtmosUnavailable) {
+              trackMeta.markAtmosUnavailable(cleanTrackId);
+            }
+            console.log(`[TorBox DB] Marked Dolby Atmos as UNAVAILABLE for track ${cleanTrackId}`);
+          }
 
           // Check if requested quality was Hi-Res, but result came in lower
           const reqIsFlac = quality === 'MAX' || quality === 'LOSSLESS' || quality === 'HIRES' || quality === 'HI_RES_LOSSLESS';
           const reqIsHires = quality === 'MAX' || quality === 'HIRES' || quality === 'HI_RES_LOSSLESS';
 
-          if (reqIsFlac && (qLabel === '320kbps' || qLabel === '96kbps')) {
+          if (reqIsFlac && (qLabel === '320kbps AAC' || qLabel === '320kbps' || qLabel === '96kbps')) {
             torboxCache.write(cleanTrackId, 'HiFi CD', 0, 'UNAVAILABLE', '');
             torboxCache.write(cleanTrackId, 'Hi-Res', 0, 'UNAVAILABLE', '');
             torboxCache.markHiresUnavailable(cleanTrackId);
@@ -2545,7 +2867,15 @@ app.get(['/:enc/stream/:type/:trackId', '/:enc/stream/:trackId'], requireValidTo
     res.end();
   } catch (err) {
     console.error('[Head Server Proxy Error]:', err.message);
-    res.status(502).json({ error: 'Stream unavailable. Please try again.' });
+    res.status(502).json({
+      error: 'Stream unavailable. Please try again.',
+      notice: {
+        level: 'error',
+        title: 'Stream Error',
+        message: 'Could not connect to streaming backend. Please try again.',
+        duration: 6
+      }
+    });
   }
 });
 

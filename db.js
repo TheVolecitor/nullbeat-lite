@@ -140,6 +140,7 @@ function initSchema() {
       artwork_url TEXT NOT NULL DEFAULT '',
       is_hires    INTEGER NOT NULL DEFAULT 0,
       hires_unavailable INTEGER NOT NULL DEFAULT 0,
+      is_atmos    INTEGER NOT NULL DEFAULT 0,
       updated_at  INTEGER NOT NULL
     );
 
@@ -166,6 +167,9 @@ function initSchema() {
   const tmCols = db.prepare("PRAGMA table_info(track_meta)").all().map(c => c.name);
   if (!tmCols.includes('hires_unavailable')) {
     db.exec("ALTER TABLE track_meta ADD COLUMN hires_unavailable INTEGER NOT NULL DEFAULT 0");
+  }
+  if (!tmCols.includes('is_atmos')) {
+    db.exec("ALTER TABLE track_meta ADD COLUMN is_atmos INTEGER NOT NULL DEFAULT 0");
   }
   const cols = db.prepare("PRAGMA table_info(torbox_cache)").all().map(c => c.name);
   if (!cols.includes('infohash')) db.exec("ALTER TABLE torbox_cache ADD COLUMN infohash TEXT NOT NULL DEFAULT ''");
@@ -302,8 +306,8 @@ const MAX_CACHE_BYTES = 1024 * 1024 * 1024;    // 1 GB strict LRU limit
  * Build a cache key from search parameters (quality-agnostic).
  * Badges are injected at read-time from torbox_cache.
  */
-function buildSearchCacheKey(query, typeParam, limitParam) {
-  return `search:${query.toLowerCase()}|${typeParam || 'all'}|${limitParam}`;
+function buildSearchCacheKey(query, typeParam, limitParam, atmos = false) {
+  return `search:${query.toLowerCase()}|${typeParam || 'all'}|${limitParam}${atmos ? '|atmos' : ''}`;
 }
 
 function getSearchCache(cacheKey) {
@@ -377,8 +381,8 @@ function saveTracksMeta(tracks) {
   const db = getDb();
   const now = Date.now();
   const insert = db.prepare(`
-    INSERT INTO track_meta (track_id, title, artist, album, duration, isrc, artwork_url, is_hires, hires_unavailable, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO track_meta (track_id, title, artist, album, duration, isrc, artwork_url, is_hires, hires_unavailable, is_atmos, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(track_id) DO UPDATE SET
       title             = CASE WHEN excluded.title != '' AND excluded.title != 'Unknown' THEN excluded.title ELSE track_meta.title END,
       artist            = CASE WHEN excluded.artist != '' AND excluded.artist != 'Unknown' THEN excluded.artist ELSE track_meta.artist END,
@@ -388,6 +392,7 @@ function saveTracksMeta(tracks) {
       artwork_url       = CASE WHEN excluded.artwork_url != '' THEN excluded.artwork_url ELSE track_meta.artwork_url END,
       is_hires          = excluded.is_hires,
       hires_unavailable = excluded.hires_unavailable,
+      is_atmos          = excluded.is_atmos,
       updated_at        = excluded.updated_at
   `);
 
@@ -449,8 +454,12 @@ function saveTracksMeta(tracks) {
 
       const isHiResVal = hasHires ? 1 : 0;
       const hiresUnavailableVal = hasHires ? 0 : 1;
+      const hasAtmos = typeof t.isAtmos === 'boolean'
+        ? t.isAtmos
+        : (allTags.some(tag => String(tag).toUpperCase() === 'DOLBY_ATMOS') || audioModes.includes('DOLBY_ATMOS'));
+      const isAtmosVal = hasAtmos ? 1 : 0;
 
-      insert.run(id, title, artist, album, duration, isrc, artworkUrl, isHiResVal, hiresUnavailableVal, now);
+      insert.run(id, title, artist, album, duration, isrc, artworkUrl, isHiResVal, hiresUnavailableVal, isAtmosVal, now);
 
       if (!hasHires) {
         markHiresUnavail.run(id, now);
@@ -544,7 +553,7 @@ function findTracksInBatch(trackIds) {
     const chunk = idStrs.slice(i, i + CHUNK_SIZE);
     const placeholders = chunk.map(() => '?').join(',');
     const rows = db.prepare(
-      `SELECT track_id, title, artist, album, duration, isrc, artwork_url, is_hires FROM track_meta WHERE track_id IN (${placeholders})`
+      `SELECT track_id, title, artist, album, duration, isrc, artwork_url, is_hires, is_atmos FROM track_meta WHERE track_id IN (${placeholders})`
     ).all(...chunk);
 
     for (const row of rows) {
@@ -557,6 +566,7 @@ function findTracksInBatch(trackIds) {
         isrc: row.isrc,
         artworkURL: row.artwork_url,
         isHiRes: Boolean(row.is_hires),
+        isAtmos: Boolean(row.is_atmos),
       });
     }
   }
@@ -573,7 +583,7 @@ function findTrackInCache(trackId) {
   const idStr = String(trackId).replace('track:', '');
   try {
     const row = db.prepare(
-      `SELECT track_id, title, artist, album, duration, isrc, artwork_url, is_hires FROM track_meta WHERE track_id = ?`
+      `SELECT track_id, title, artist, album, duration, isrc, artwork_url, is_hires, is_atmos FROM track_meta WHERE track_id = ?`
     ).get(idStr);
 
     if (row && (row.title || row.artist)) {
@@ -586,6 +596,7 @@ function findTrackInCache(trackId) {
         isrc: row.isrc,
         artworkURL: row.artwork_url,
         isHiRes: Boolean(row.is_hires),
+        isAtmos: Boolean(row.is_atmos),
       };
     }
   } catch (_) { }
@@ -662,7 +673,19 @@ function markHiresUnavailable(trackId) {
   } catch (_) { }
 }
 
+function normalizeCacheQuality(q) {
+  if (!q) return 'HiFi CD';
+  const u = String(q).trim().toUpperCase();
+  if (u === 'DOLBY ATMOS' || u === 'ATMOS' || u.includes('ATMOS')) return 'DOLBY ATMOS';
+  if (u === 'HI-RES' || u === 'HIRES' || u.includes('HI-RES') || u.includes('HIRES')) return 'Hi-Res';
+  if (u === 'HIFI CD' || u === 'CD' || u === 'LOSSLESS' || u.includes('16BIT') || u.includes('44.1')) return 'HiFi CD';
+  if (u === '320KBPS AAC' || u === '320KBPS' || u === '320' || u === 'HIGH') return '320kbps AAC';
+  if (u === '96KBPS' || u === '96' || u === 'LOW') return '96kbps';
+  return q;
+}
+
 function writeTorboxCache(trackId, quality, sizeMb, infohash = '', filename = '') {
+  const normQuality = normalizeCacheQuality(quality);
   const db = getDb();
   db.prepare(
     `INSERT INTO torbox_cache (track_id, quality, infohash, filename, size_mb, updated_at)
@@ -672,7 +695,7 @@ function writeTorboxCache(trackId, quality, sizeMb, infohash = '', filename = ''
        filename   = excluded.filename,
        size_mb    = excluded.size_mb,
        updated_at = excluded.updated_at`
-  ).run(String(trackId), quality, infohash, filename, sizeMb, Date.now());
+  ).run(String(trackId), normQuality, infohash, filename, sizeMb, Date.now());
 }
 
 /**
@@ -686,9 +709,10 @@ function lookupTorboxBadges(trackIds, qualityChain) {
   }
 
   const QUALITY_LABELS = {
+    ATMOS: 'DOLBY ATMOS',
     HI_RES_LOSSLESS: 'Hi-Res',
     LOSSLESS: 'HiFi CD',
-    HIGH: '320kbps',
+    HIGH: '320kbps AAC',
     LOW: '96kbps',
   };
 
@@ -750,9 +774,10 @@ function lookupStreamHit(trackId, qualityChain) {
   if (!trackId || !qualityChain || qualityChain.length === 0) return null;
 
   const QUALITY_LABELS = {
+    ATMOS: 'DOLBY ATMOS',
     HI_RES_LOSSLESS: 'Hi-Res',
     LOSSLESS: 'HiFi CD',
-    HIGH: '320kbps',
+    HIGH: '320kbps AAC',
     LOW: '96kbps',
   };
 
@@ -790,6 +815,36 @@ function lookupStreamHit(trackId, qualityChain) {
   }
 
   return null;
+}
+
+function markAtmosUnavailable(trackId) {
+  const cleanId = String(trackId).replace(/^track:/, '').trim();
+  const db = getDb();
+  try {
+    db.prepare(`
+      INSERT INTO torbox_cache (track_id, quality, size_mb, infohash, filename, updated_at)
+      VALUES (?, 'DOLBY ATMOS', 0, 'UNAVAILABLE', '', ?)
+      ON CONFLICT(track_id, quality) DO UPDATE SET
+        infohash = CASE WHEN torbox_cache.infohash = '' OR torbox_cache.infohash = 'UNAVAILABLE' THEN 'UNAVAILABLE' ELSE torbox_cache.infohash END,
+        updated_at = excluded.updated_at
+    `).run(cleanId, Date.now());
+
+    db.prepare(`
+      UPDATE track_meta SET is_atmos = 0 WHERE track_id = ?
+    `).run(cleanId);
+  } catch (_) {}
+}
+
+function isAtmosUnavailable(trackId) {
+  const cleanId = String(trackId).replace(/^track:/, '').trim();
+  const db = getDb();
+  try {
+    const row = db.prepare('SELECT infohash FROM torbox_cache WHERE track_id = ? AND quality = ?').get(cleanId, 'DOLBY ATMOS');
+    if (row && row.infohash === 'UNAVAILABLE') return true;
+    const meta = db.prepare('SELECT is_atmos FROM track_meta WHERE track_id = ?').get(cleanId);
+    if (meta && meta.is_atmos === 0) return true;
+  } catch (_) {}
+  return false;
 }
 
 // ── Stats Counters API ────────────────────────────────────────────────────────
@@ -1495,6 +1550,8 @@ module.exports = {
     save: saveTracksMeta,
     markHiresUnavailable: markHiresUnavailable,
     isHiresUnavailable: isHiresUnavailable,
+    markAtmosUnavailable: markAtmosUnavailable,
+    isAtmosUnavailable: isAtmosUnavailable,
   },
 
   // TorBox Cache
@@ -1502,6 +1559,8 @@ module.exports = {
     write: writeTorboxCache,
     markHiresUnavailable: markHiresUnavailable,
     isHiresUnavailable: isHiresUnavailable,
+    markAtmosUnavailable: markAtmosUnavailable,
+    isAtmosUnavailable: isAtmosUnavailable,
     lookupBadges: lookupTorboxBadges,
     lookupStreamHit: lookupStreamHit,
   },

@@ -101,11 +101,18 @@ function securityMiddleware(req, res, next) {
     // 1. Check IP Ban
     if (rule.action === 'BAN') {
       res.set('Content-Type', 'application/json');
+      const banReason = rule.reason || 'Security policy violation';
       return res.status(403).json({
         error: 'Forbidden',
         message: 'Your IP address has been banned by the administrator.',
         ip: ip,
-        reason: rule.reason || 'Security policy violation'
+        reason: banReason,
+        notice: {
+          level: 'error',
+          title: 'IP Blocked',
+          message: `Your IP has been blocked: ${banReason}`.slice(0, 120),
+          duration: 8
+        }
       });
     }
 
@@ -128,7 +135,13 @@ function securityMiddleware(req, res, next) {
           message: `Rate limit of ${limitRpm} requests/min exceeded for your IP.`,
           ip: ip,
           limit: limitRpm,
-          retryAfterSeconds: 60
+          retryAfterSeconds: 60,
+          notice: {
+            level: 'warning',
+            title: 'Rate Limited',
+            message: `Rate limit of ${limitRpm} req/min reached. Please wait a minute.`,
+            duration: 6
+          }
         });
       }
 

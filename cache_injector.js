@@ -24,10 +24,10 @@ const FALLBACK_CHAINS = {
 };
 
 const META_MAP = {
-  HI_RES_LOSSLESS: { label: 'Hi-Res',   ext: 'flac' },
-  LOSSLESS:        { label: 'HiFi CD',  ext: 'flac' },
-  HIGH:            { label: '320kbps',  ext: 'm4a'  },
-  LOW:             { label: '96kbps',   ext: 'm4a'  },
+  HI_RES_LOSSLESS: { label: 'Hi-Res',      ext: 'flac' },
+  LOSSLESS:        { label: 'HiFi CD',     ext: 'flac' },
+  HIGH:            { label: '320kbps AAC', ext: 'm4a'  },
+  LOW:             { label: '96kbps',      ext: 'm4a'  },
 };
 
 function md5(text) {
@@ -45,7 +45,7 @@ function clean(str) {
  * - Writes every hit into torbox_cache DB.
  * - Stamps track.infotext for the best cached quality in the user's chain.
  */
-async function injectCacheInfo(tracks, torboxApiKey, quality = 'MAX') {
+async function injectCacheInfo(tracks, torboxApiKey, quality = 'MAX', isAtmos = false) {
   if (!tracks || tracks.length === 0) return tracks;
   if (!torboxApiKey) return tracks;
 
@@ -59,6 +59,20 @@ async function injectCacheInfo(tracks, torboxApiKey, quality = 'MAX') {
     const cleanTrackName = clean(track.title) || 'Track';
     const cleanArtistName = clean(track.artist || 'Unknown Artist');
     const trackIdRaw = String(track.id).replace('track:', '');
+
+    if (track.isAtmos) {
+      // Dolby Atmos tag present: check for DOLBY ATMOS quality hash
+      const fn = `${cleanTrackName} - ${cleanArtistName} [NullBeat ${trackIdRaw} - DOLBY ATMOS].m4a`;
+      const fnNoExt = `${cleanTrackName} - ${cleanArtistName} [NullBeat ${trackIdRaw} - DOLBY ATMOS]`;
+      const hash = md5(fn);
+      const hashNoExt = md5(fnNoExt);
+      hashToInfo[hash] = { track, formatKey: 'ATMOS', label: 'DOLBY ATMOS', trackId: trackIdRaw, filename: fn };
+      hashToInfo[hashNoExt] = hashToInfo[hash];
+      hashToInfo[fn] = hashToInfo[hash];
+      hashToInfo[fnNoExt] = hashToInfo[hash];
+      hashes.push(hash);
+      hashes.push(hashNoExt);
+    }
 
     // Check Hi-Res availability: if track has no Hi-Res on Tidal, mark it unavailable and skip Hi-Res
     const isHires = track.isHiRes !== false && !torboxCache.isHiresUnavailable(trackIdRaw);
@@ -139,12 +153,19 @@ async function injectCacheInfo(tracks, torboxApiKey, quality = 'MAX') {
               // non-fatal
             }
 
-            // Stamp badge on track (best quality wins)
-            const currentBestIdx = track._cacheIdx !== undefined ? track._cacheIdx : 999;
-            const newIdx = chain.indexOf(formatKey);
-            if (newIdx !== -1 && newIdx < currentBestIdx) {
-              track._cacheIdx = newIdx;
-              track.infotext = `⚡ Cached - ${label} - ${sizeMb}MB`;
+            // Stamp badge on track (best quality wins, DOLBY ATMOS only if user requested Atmos)
+            if (formatKey === 'ATMOS') {
+              if (isAtmos) {
+                track._cacheIdx = -1;
+                track.infotext = `⚡ Cached - DOLBY ATMOS - ${sizeMb}MB`;
+              }
+            } else {
+              const currentBestIdx = track._cacheIdx !== undefined ? track._cacheIdx : 999;
+              const newIdx = chain.indexOf(formatKey);
+              if (newIdx !== -1 && newIdx < currentBestIdx) {
+                track._cacheIdx = newIdx;
+                track.infotext = `⚡ Cached - ${label} - ${sizeMb}MB`;
+              }
             }
           }
         }
@@ -166,13 +187,13 @@ async function injectCacheInfo(tracks, torboxApiKey, quality = 'MAX') {
  * Used during /stream to resolve immediate cache status if not yet in SQLite.
  * Returns cached hit object { quality, infohash, filename, sizeMb } or null.
  */
-async function checkSingleTrackCache(trackId, title, artist, torboxApiKey, quality = 'MAX') {
+async function checkSingleTrackCache(trackId, title, artist, torboxApiKey, quality = 'MAX', isAtmos = false) {
   if (!trackId || !torboxApiKey) return null;
   const cleanTrackId = String(trackId).replace(/^track:/, '').trim();
   const cleanTrackName = clean(title) || 'Track';
   const cleanArtistName = clean(artist) || 'Unknown Artist';
 
-  const chain = FALLBACK_CHAINS[quality] || FALLBACK_CHAINS['MAX'];
+  const chain = isAtmos ? ['ATMOS'] : (FALLBACK_CHAINS[quality] || FALLBACK_CHAINS['MAX']);
   const isHires = !torboxCache.isHiresUnavailable(cleanTrackId);
 
   const artistVariants = [cleanArtistName];
@@ -188,7 +209,23 @@ async function checkSingleTrackCache(trackId, title, artist, torboxApiKey, quali
   const hashToInfo = {};
   const hashes = [];
 
+  if (isAtmos) {
+    for (const aName of artistVariants) {
+      const fn = `${cleanTrackName} - ${aName} [NullBeat ${cleanTrackId} - DOLBY ATMOS].m4a`;
+      const fnNoExt = `${cleanTrackName} - ${aName} [NullBeat ${cleanTrackId} - DOLBY ATMOS]`;
+      const hash = md5(fn);
+      const hashNoExt = md5(fnNoExt);
+      hashToInfo[hash] = { formatKey: 'ATMOS', label: 'DOLBY ATMOS', trackId: cleanTrackId, filename: fn };
+      hashToInfo[hashNoExt] = hashToInfo[hash];
+      hashToInfo[fn] = hashToInfo[hash];
+      hashToInfo[fnNoExt] = hashToInfo[hash];
+      hashes.push(hash);
+      hashes.push(hashNoExt);
+    }
+  }
+
   for (const formatKey of chain) {
+    if (formatKey === 'ATMOS') continue;
     if (formatKey === 'HI_RES_LOSSLESS' && !isHires) continue;
     const info = META_MAP[formatKey];
     if (!info) continue;
@@ -236,6 +273,15 @@ async function checkSingleTrackCache(trackId, title, artist, torboxApiKey, quali
             torboxCache.write(cleanTrackId, label, sizeMb, actualInfohash, filename);
           } catch (_) {}
 
+          if (formatKey === 'ATMOS' && isAtmos) {
+            return {
+              quality: label,
+              infohash: actualInfohash,
+              filename,
+              sizeMb,
+            };
+          }
+
           const idx = chain.indexOf(formatKey);
           if (idx !== -1 && idx < bestIdx) {
             bestIdx = idx;
@@ -261,19 +307,35 @@ async function checkSingleTrackCache(trackId, title, artist, torboxApiKey, quali
  * Used when serving a cached search result to stamp the right badges
  * for the requesting user's quality setting.
  */
-function lookupAndInjectBadges(tracks, quality = 'MAX') {
+function lookupAndInjectBadges(tracks, quality = 'MAX', isAtmos = false) {
   if (!tracks || tracks.length === 0) return tracks;
 
   const chain = FALLBACK_CHAINS[quality] || FALLBACK_CHAINS['MAX'];
-  const trackIds = tracks.map(t => String(t.id).replace('track:', ''));
-
-  const badgeMap = torboxCache.lookupBadges(trackIds, chain);
+  
+  const normalTrackIds = [];
+  const atmosTrackIds = [];
 
   for (const track of tracks) {
     const rawId = String(track.id).replace('track:', '');
-    const hit = badgeMap.get(rawId);
-    if (hit) {
-      track.infotext = `⚡ Cached - ${hit.label} - ${hit.sizeMb}MB`;
+    if (isAtmos && track.isAtmos) {
+      atmosTrackIds.push(rawId);
+    }
+    normalTrackIds.push(rawId);
+  }
+
+  const badgeMap = normalTrackIds.length > 0 ? torboxCache.lookupBadges(normalTrackIds, chain) : new Map();
+  const atmosBadgeMap = atmosTrackIds.length > 0 ? torboxCache.lookupBadges(atmosTrackIds, ['ATMOS']) : new Map();
+
+  for (const track of tracks) {
+    const rawId = String(track.id).replace('track:', '');
+    const atmosHit = (isAtmos && track.isAtmos) ? atmosBadgeMap.get(rawId) : null;
+    if (atmosHit) {
+      track.infotext = `⚡ Cached - DOLBY ATMOS - ${atmosHit.sizeMb}MB`;
+    } else {
+      const hit = badgeMap.get(rawId);
+      if (hit) {
+        track.infotext = `⚡ Cached - ${hit.label} - ${hit.sizeMb}MB`;
+      }
     }
   }
 
