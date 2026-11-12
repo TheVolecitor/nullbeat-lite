@@ -311,7 +311,80 @@ function mapTrack(t, base, enc) {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// ── Key Validation & User Registration (Floodgate with KV Store) ────────────
+// ── Key Validation & TorBox Plan Verification ────────────────────────────────
+
+function isExistingKey(apiKey) {
+  if (!apiKey) return false;
+  const cleanKey = String(apiKey).trim().toLowerCase();
+
+  const allowedKeysRaw = process.env.ALLOWED_KEYS;
+  if (allowedKeysRaw && allowedKeysRaw.trim() !== '' && allowedKeysRaw.trim() !== '*') {
+    const list = allowedKeysRaw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+    if (list.includes(cleanKey)) return true;
+  }
+
+  try {
+    const registeredRaw = kv.get('registered_keys');
+    const invitedRaw = kv.get('invited_keys');
+    const registered = registeredRaw ? JSON.parse(registeredRaw) : [];
+    const invited = invitedRaw ? JSON.parse(invitedRaw) : [];
+    if (registered.includes(cleanKey) || invited.includes(cleanKey)) return true;
+  } catch (_) { }
+
+  return false;
+}
+
+const torboxPlanCache = new Map(); // cleanKey -> { ok, plan, error, expiresAt }
+
+async function checkTorboxPlan(apiKey) {
+  if (!apiKey) return { ok: false, error: 'Missing API Key' };
+  const cleanKey = String(apiKey).trim().toLowerCase();
+
+  const cached = torboxPlanCache.get(cleanKey);
+  if (cached && Date.now() < cached.expiresAt) {
+    return cached;
+  }
+
+  try {
+    const res = await fetch('https://api.torbox.app/v1/api/user/me?settings=false', {
+      headers: {
+        'Authorization': `Bearer ${cleanKey}`,
+        'User-Agent': 'NullBeat/1.0.0',
+      },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) {
+        const result = { ok: false, error: 'Invalid TorBox API Key.' };
+        torboxPlanCache.set(cleanKey, { ...result, expiresAt: Date.now() + 30000 });
+        return result;
+      }
+      return { ok: false, error: 'Could not verify TorBox account. Please try again.' };
+    }
+
+    const data = await res.json();
+    if (!data.success || !data.data) {
+      const result = { ok: false, error: data.detail || data.error || 'Invalid TorBox API Key.' };
+      torboxPlanCache.set(cleanKey, { ...result, expiresAt: Date.now() + 30000 });
+      return result;
+    }
+
+    const plan = data.data.plan;
+    if (plan === 0 || plan === '0' || plan === null || plan === undefined) {
+      const result = { ok: false, plan: 0, error: 'Free plan not allowed.' };
+      torboxPlanCache.set(cleanKey, { ...result, expiresAt: Date.now() + 60000 });
+      return result;
+    }
+
+    const result = { ok: true, plan: Number(plan) };
+    torboxPlanCache.set(cleanKey, { ...result, expiresAt: Date.now() + 300000 });
+    return result;
+  } catch (err) {
+    console.warn('[TorBox Plan Check] Request error:', err.message);
+    return { ok: false, error: 'Could not connect to TorBox to verify plan. Please try again.' };
+  }
+}
 
 async function isKeyAllowed(apiKey, inviteCode = null) {
   if (!apiKey) return false;
@@ -335,7 +408,15 @@ async function isKeyAllowed(apiKey, inviteCode = null) {
     let registered = registeredRaw ? JSON.parse(registeredRaw) : [];
     let invited = invitedRaw ? JSON.parse(invitedRaw) : [];
 
+    // Existing keys are immediately allowed without checking TorBox plan
     if (registered.includes(cleanKey) || invited.includes(cleanKey)) return true;
+
+    // For new registrations: ensure the TorBox plan is not Free (plan != 0)
+    const planRes = await checkTorboxPlan(cleanKey);
+    if (!planRes.ok) {
+      console.log(`[Floodgate] Rejected key registration for ...${cleanKey.slice(-4)}: ${planRes.error}`);
+      return false;
+    }
 
     if (inviteCode) {
       try {
@@ -363,7 +444,7 @@ async function isKeyAllowed(apiKey, inviteCode = null) {
                 invited.push(cleanKey);
                 kv.put('invited_keys', JSON.stringify(invited));
                 kv.put('invite_counts', JSON.stringify(inviteCounts));
-                console.log(`[Floodgate] Registered INVITED user: ...${cleanKey.slice(-4)}`);
+                console.log(`[Floodgate] Registered INVITED user (Plan: ${planRes.plan}): ...${cleanKey.slice(-4)}`);
                 return true;
               } else {
                 console.log(`[Floodgate] Invite pool closed (${invited.length}/${maxInvitedUsers})`);
@@ -381,7 +462,7 @@ async function isKeyAllowed(apiKey, inviteCode = null) {
     if (maxUsers <= 0 || registered.length < maxUsers) {
       registered.push(cleanKey);
       kv.put('registered_keys', JSON.stringify(registered));
-      console.log(`[Floodgate] Registered new user (${registered.length}${maxUsers > 0 ? '/' + maxUsers : ''}): ...${cleanKey.slice(-4)}`);
+      console.log(`[Floodgate] Registered new user (Plan: ${planRes.plan}, ${registered.length}${maxUsers > 0 ? '/' + maxUsers : ''}): ...${cleanKey.slice(-4)}`);
       return true;
     }
 
@@ -2247,6 +2328,16 @@ app.get('/api/verify-key', async (req, res) => {
   const invite = req.query.invite || null;
   if (!key) return res.status(400).json({ allowed: false, error: 'Missing API Key' });
   if (!UUID_RE.test(key)) return res.status(400).json({ allowed: false, error: 'Invalid API Key format. Must be a valid UUID.' });
+
+  const cleanKey = key.trim().toLowerCase();
+
+  // Only for new key registrations, check TorBox plan (plan != 0)
+  if (!isExistingKey(cleanKey)) {
+    const planRes = await checkTorboxPlan(cleanKey);
+    if (!planRes.ok) {
+      return res.json({ allowed: false, error: planRes.error });
+    }
+  }
 
   const allowed = await isKeyAllowed(key, invite);
   if (!allowed) {

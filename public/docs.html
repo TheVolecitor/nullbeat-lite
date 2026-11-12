@@ -630,12 +630,15 @@
             class="filename-part-q">HiFi CD</span>].flac<br>
           <span class="filename-part-t">Monkeys Spinning Monkeys</span> - <span class="filename-part-a">Kevin
             MacLeod</span> [NullBeat <span class="filename-part-id">359051850</span> - <span
-            class="filename-part-q">320kbps</span>].m4a<br>
+            class="filename-part-q">320kbps AAC</span>].m4a<br>
           <span class="filename-part-t">Monkeys Spinning Monkeys</span> - <span class="filename-part-a">Kevin
             MacLeod</span> [NullBeat <span class="filename-part-id">359051850</span> - <span
-            class="filename-part-q">96kbps</span>].m4a
+            class="filename-part-q">96kbps</span>].m4a<br>
+          <span class="filename-part-t">Monkeys Spinning Monkeys</span> - <span class="filename-part-a">Kevin
+            MacLeod</span> [NullBeat <span class="filename-part-id">359051850</span> - <span
+            class="filename-part-q">DOLBY ATMOS</span>].m4a
         </div>
-        <p><em>Note: Sanitize the title and artist by stripping characters: <code>/ \ ? % * : | " &lt; &gt;</code></em>
+        <p><em>Note: If the search results have <code>DOLBY_ATMOS</code> in their tags or audio modes, include the <code>DOLBY ATMOS</code> quality label (.m4a). Sanitize the title and artist by stripping characters: <code>/ \ ? % * : | " &lt; &gt;</code></em>
         </p>
       </section>
 
@@ -722,7 +725,12 @@
 
 <span class="cm">// 4. Build hashes &amp; print candidates</span>
 <span class="cf">const</span> clean = s =&gt; (s || <span class="cs">''</span>).<span class="cf">replace</span>(<span class="cs">/[\/\\?%*:|"&lt;&gt;]/g</span>, <span class="cs">''</span>).<span class="cf">trim</span>();
-<span class="cf">const</span> tiers = [{ label: <span class="cs">'Hi-Res'</span>, ext: <span class="cs">'flac'</span> }, { label: <span class="cs">'HiFi CD'</span>, ext: <span class="cs">'flac'</span> }, { label: <span class="cs">'320kbps'</span>, ext: <span class="cs">'m4a'</span> }, { label: <span class="cs">'96kbps'</span>, ext: <span class="cs">'m4a'</span> }];
+<span class="cf">const</span> tiers = [
+  { label: <span class="cs">'Hi-Res'</span>, ext: <span class="cs">'flac'</span> },
+  { label: <span class="cs">'HiFi CD'</span>, ext: <span class="cs">'flac'</span> },
+  { label: <span class="cs">'320kbps AAC'</span>, ext: <span class="cs">'m4a'</span> },
+  { label: <span class="cs">'96kbps'</span>, ext: <span class="cs">'m4a'</span> }
+];
 <span class="cf">const</span> filenamesSet = <span class="ck">new</span> <span class="cf">Set</span>();
 <span class="cf">const</span> hashes = [];
 
@@ -731,7 +739,18 @@ console.<span class="cf">log</span>(<span class="cs">'Checking candidate filenam
   <span class="cf">const</span> artistNames = (t.relationships?.artists?.data || [])
     .<span class="cf">map</span>(a =&gt; includedMap.<span class="cf">get</span>(<span class="cs">`artists:<span class="cv">${a.id}</span>`</span>)?.attributes?.name).<span class="cf">filter</span>(Boolean);
   <span class="cf">const</span> id = String(t.id).<span class="cf">replace</span>(<span class="cs">/^track:/</span>, <span class="cs">''</span>);
-  <span class="ck">for</span> (<span class="cf">const</span> tier <span class="ck">of</span> tiers) {
+
+  <span class="cm">// Include DOLBY ATMOS if tags or audio modes contain dolby_atmos</span>
+  <span class="cf">const</span> mediaTags = t.attributes?.mediaTags || [];
+  <span class="cf">const</span> audioModes = t.attributes?.audioModes || [];
+  <span class="cf">const</span> hasAtmos = [...mediaTags, ...audioModes].<span class="cf">some</span>(tag =&gt; <span class="cs">/dolby\s*_?atmos/i</span>.<span class="cf">test</span>(String(tag)));
+
+  <span class="cf">const</span> trackTiers = [...tiers];
+  <span class="ck">if</span> (hasAtmos) {
+    trackTiers.<span class="cf">push</span>({ label: <span class="cs">'DOLBY ATMOS'</span>, ext: <span class="cs">'m4a'</span> });
+  }
+
+  <span class="ck">for</span> (<span class="cf">const</span> tier <span class="ck">of</span> trackTiers) {
     <span class="cf">const</span> fn = <span class="cs">`<span class="cv">${clean(t.attributes?.title)}</span> - <span class="cv">${clean(artistNames[0])}</span> [NullBeat <span class="cv">${id}</span> - <span class="cv">${tier.label}</span>].<span class="cv">${tier.ext}</span>`</span>;
     <span class="cf">const</span> md5 = crypto.<span class="cf">createHash</span>(<span class="cs">'md5'</span>).<span class="cf">update</span>(fn).<span class="cf">digest</span>(<span class="cs">'hex'</span>);
     filenamesSet.<span class="cf">add</span>(fn);
@@ -758,7 +777,7 @@ console.<span class="cf">log</span>(hits.length ? <span class="cs">`✓ CACHED: 
         <div id="tab-python" class="tab-pane">
           <div class="code-container">
             <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-            <pre><code><span class="ck">import</span> os, requests, hashlib, base64
+            <pre><code><span class="ck">import</span> os, requests, hashlib, base64, re
 
 <span class="cm"># Load .env file automatically</span>
 <span class="ck">try</span>:
@@ -805,7 +824,7 @@ tracks = []
 
 <span class="cm"># 4. Build hashes &amp; print candidates</span>
 <span class="ck">def</span> <span class="cf">clean</span>(s): <span class="ck">return</span> <span class="cs">""</span>.<span class="cf">join</span>([c <span class="ck">for</span> c <span class="ck">in</span> (s <span class="ck">or</span> <span class="cs">""</span>) <span class="ck">if</span> c <span class="ck">not in</span> <span class="cs">r'/\?%*:|"&lt;&gt;'</span>]).<span class="cf">strip</span>()
-tiers = [{<span class="cs">'label'</span>: <span class="cs">'Hi-Res'</span>, <span class="cs">'ext'</span>: <span class="cs">'flac'</span>}, {<span class="cs">'label'</span>: <span class="cs">'HiFi CD'</span>, <span class="cs">'ext'</span>: <span class="cs">'flac'</span>}, {<span class="cs">'label'</span>: <span class="cs">'320kbps'</span>, <span class="cs">'ext'</span>: <span class="cs">'m4a'</span>}, {<span class="cs">'label'</span>: <span class="cs">'96kbps'</span>, <span class="cs">'ext'</span>: <span class="cs">'m4a'</span>}]
+tiers = [{<span class="cs">'label'</span>: <span class="cs">'Hi-Res'</span>, <span class="cs">'ext'</span>: <span class="cs">'flac'</span>}, {<span class="cs">'label'</span>: <span class="cs">'HiFi CD'</span>, <span class="cs">'ext'</span>: <span class="cs">'flac'</span>}, {<span class="cs">'label'</span>: <span class="cs">'320kbps AAC'</span>, <span class="cs">'ext'</span>: <span class="cs">'m4a'</span>}, {<span class="cs">'label'</span>: <span class="cs">'96kbps'</span>, <span class="cs">'ext'</span>: <span class="cs">'m4a'</span>}]
 hashes = []
 filenames_set = set()
 
@@ -814,9 +833,18 @@ filenames_set = set()
     art_refs = t.get(<span class="cs">'relationships'</span>, {}).get(<span class="cs">'artists'</span>, {}).get(<span class="cs">'data'</span>, [])
     artist = included.get(<span class="cs">f"artists:<span class="cv">{art_refs[0]['id']}</span>"</span>, {}).get(<span class="cs">'attributes'</span>, {}).get(<span class="cs">'name'</span>, <span class="cs">''</span>) <span class="ck">if</span> art_refs <span class="ck">else</span> <span class="cs">''</span>
     tid = str(t[<span class="cs">'id'</span>]).<span class="cf">replace</span>(<span class="cs">'track:'</span>, <span class="cs">''</span>)
+    attrs = t.get(<span class="cs">'attributes'</span>, {})
+
+    <span class="cm"># Include DOLBY ATMOS if tags or audio modes contain dolby_atmos</span>
+    tags = (attrs.get(<span class="cs">'mediaTags'</span>) <span class="ck">or</span> []) + (attrs.get(<span class="cs">'audioModes'</span>) <span class="ck">or</span> [])
+    has_atmos = any(re.search(<span class="cs">r'dolby\s*_?atmos'</span>, str(tag), re.I) <span class="ck">for</span> tag <span class="ck">in</span> tags)
+
+    track_tiers = list(tiers)
+    <span class="ck">if</span> has_atmos:
+        track_tiers.append({<span class="cs">'label'</span>: <span class="cs">'DOLBY ATMOS'</span>, <span class="cs">'ext'</span>: <span class="cs">'m4a'</span>})
     
-    <span class="ck">for</span> tier <span class="ck">in</span> tiers:
-        fn = <span class="cs">f"<span class="cv">{clean(t['attributes']['title'])}</span> - <span class="cv">{clean(artist)}</span> [NullBeat <span class="cv">{tid}</span> - <span class="cv">{tier['label']}</span>].<span class="cv">{tier['ext']}</span>"</span>
+    <span class="ck">for</span> tier <span class="ck">in</span> track_tiers:
+        fn = <span class="cs">f"<span class="cv">{clean(attrs.get('title'))}</span> - <span class="cv">{clean(artist)}</span> [NullBeat <span class="cv">{tid}</span> - <span class="cv">{tier['label']}</span>].<span class="cv">{tier['ext']}</span>"</span>
         md5 = hashlib.md5(fn.<span class="cf">encode</span>()).<span class="cf">hexdigest</span>()
         filenames_set.add(fn)
         hashes.append(md5)
